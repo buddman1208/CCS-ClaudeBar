@@ -18,6 +18,10 @@ public struct UsageQuota: Sendable, Equatable, Hashable, Comparable {
     /// Raw reset text from CLI (e.g., "Resets 11am", "Resets Jan 15")
     public let resetText: String?
 
+    /// Dollar balance remaining for credit-based quotas with no cap (e.g., "$50 remaining").
+    /// nil for percentage-based quotas that have a known total.
+    public let dollarRemaining: Decimal?
+
     // MARK: - Initialization
 
     public init(
@@ -25,13 +29,15 @@ public struct UsageQuota: Sendable, Equatable, Hashable, Comparable {
         quotaType: QuotaType,
         providerId: String,
         resetsAt: Date? = nil,
-        resetText: String? = nil
+        resetText: String? = nil,
+        dollarRemaining: Decimal? = nil
     ) {
         self.percentRemaining = min(100, percentRemaining)  // Allow negative, cap at 100
         self.quotaType = quotaType
         self.providerId = providerId
         self.resetsAt = resetsAt
         self.resetText = resetText
+        self.dollarRemaining = dollarRemaining
     }
 
     // MARK: - Domain Behavior
