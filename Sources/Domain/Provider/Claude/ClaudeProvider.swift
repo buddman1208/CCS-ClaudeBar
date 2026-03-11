@@ -76,6 +76,9 @@ public final class ClaudeProvider: AIProvider, @unchecked Sendable {
     /// The settings repository for persisting provider settings
     private let settingsRepository: any ProviderSettingsRepository
 
+    /// Optional analyzer for daily usage from JSONL session data
+    private let dailyUsageAnalyzer: (any DailyUsageAnalyzing)?
+
     /// Returns the active probe based on current mode
     private var activeProbe: any UsageProbe {
         switch probeMode {
@@ -97,12 +100,14 @@ public final class ClaudeProvider: AIProvider, @unchecked Sendable {
     public init(
         probe: any UsageProbe,
         passProbe: (any ClaudePassProbing)? = nil,
-        settingsRepository: any ProviderSettingsRepository
+        settingsRepository: any ProviderSettingsRepository,
+        dailyUsageAnalyzer: (any DailyUsageAnalyzing)? = nil
     ) {
         self.cliProbe = probe
         self.apiProbe = nil
         self.passProbe = passProbe
         self.settingsRepository = settingsRepository
+        self.dailyUsageAnalyzer = dailyUsageAnalyzer
         // Load persisted enabled state (defaults to true)
         self.isEnabled = settingsRepository.isEnabled(forProvider: "claude")
     }
@@ -117,12 +122,14 @@ public final class ClaudeProvider: AIProvider, @unchecked Sendable {
         cliProbe: any UsageProbe,
         apiProbe: any UsageProbe,
         passProbe: (any ClaudePassProbing)? = nil,
-        settingsRepository: any ClaudeSettingsRepository
+        settingsRepository: any ClaudeSettingsRepository,
+        dailyUsageAnalyzer: (any DailyUsageAnalyzing)? = nil
     ) {
         self.cliProbe = cliProbe
         self.apiProbe = apiProbe
         self.passProbe = passProbe
         self.settingsRepository = settingsRepository
+        self.dailyUsageAnalyzer = dailyUsageAnalyzer
         // Load persisted enabled state (defaults to true)
         self.isEnabled = settingsRepository.isEnabled(forProvider: "claude")
     }
@@ -157,16 +164,16 @@ public final class ClaudeProvider: AIProvider, @unchecked Sendable {
 
         do {
             let newSnapshot = try await primaryProbe().probe()
-            snapshot = newSnapshot
+            snapshot = await attachDailyReport(to: newSnapshot)
             lastError = nil
-            return newSnapshot
+            return snapshot!
         } catch {
             if let fallback = await fallbackProbe() {
                 do {
                     let newSnapshot = try await fallback.probe()
-                    snapshot = newSnapshot
+                    snapshot = await attachDailyReport(to: newSnapshot)
                     lastError = nil
-                    return newSnapshot
+                    return snapshot!
                 } catch {
                     lastError = error
                     throw error
@@ -176,6 +183,27 @@ public final class ClaudeProvider: AIProvider, @unchecked Sendable {
             lastError = error
             throw error
         }
+    }
+
+    /// Attaches daily usage report to snapshot if analyzer is available.
+    private func attachDailyReport(to snapshot: UsageSnapshot) async -> UsageSnapshot {
+        guard let analyzer = dailyUsageAnalyzer,
+              let report = try? await analyzer.analyzeToday(),
+              !report.today.isEmpty else {
+            return snapshot
+        }
+        return UsageSnapshot(
+            providerId: snapshot.providerId,
+            quotas: snapshot.quotas,
+            capturedAt: snapshot.capturedAt,
+            accountEmail: snapshot.accountEmail,
+            accountOrganization: snapshot.accountOrganization,
+            loginMethod: snapshot.loginMethod,
+            accountTier: snapshot.accountTier,
+            costUsage: snapshot.costUsage,
+            bedrockUsage: snapshot.bedrockUsage,
+            dailyUsageReport: report
+        )
     }
 
     private func primaryProbe() -> any UsageProbe {

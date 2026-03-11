@@ -56,7 +56,8 @@ struct ClaudeBarApp: App {
                 cliProbe: ClaudeUsageProbe(),
                 apiProbe: ClaudeAPIUsageProbe(),
                 passProbe: ClaudePassProbe(),
-                settingsRepository: settingsRepository
+                settingsRepository: settingsRepository,
+                dailyUsageAnalyzer: LocalDailyUsageAnalyzer()
             ),
             CodexProvider(
                 rpcProbe: CodexUsageProbe(),
@@ -97,8 +98,7 @@ struct ClaudeBarApp: App {
         // QuotaMonitor automatically validates selected provider on init
         monitor = QuotaMonitor(
             providers: repository,
-            alerter: quotaAlerter,
-            dailyUsageAnalyzer: LocalDailyUsageAnalyzer()
+            alerter: quotaAlerter
         )
         AppLog.monitor.info("QuotaMonitor initialized")
 

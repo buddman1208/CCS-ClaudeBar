@@ -23,11 +23,13 @@ public struct LocalDailyUsageAnalyzer: DailyUsageAnalyzing, Sendable {
         let todayStart = calendar.startOfDay(for: currentDate)
         let yesterdayStart = calendar.date(byAdding: .day, value: -1, to: todayStart)!
 
-        // Collect all JSONL files from projects directory
+        // Only scan files modified in the last 2 days for performance
         let projectsDir = claudeDir.appendingPathComponent("projects")
-        let jsonlFiles = findJSONLFiles(in: projectsDir)
+        let jsonlFiles = findRecentJSONLFiles(in: projectsDir, since: yesterdayStart)
 
-        // Parse all files and collect records
+        AppLog.probes.info("DailyUsage: scanning \(jsonlFiles.count) recent JSONL files")
+
+        // Parse files and collect records
         let parser = SessionJSONLParser()
         var allRecords: [TokenUsageRecord] = []
         for fileURL in jsonlFiles {
@@ -35,6 +37,8 @@ public struct LocalDailyUsageAnalyzer: DailyUsageAnalyzing, Sendable {
                 allRecords.append(contentsOf: records)
             }
         }
+
+        AppLog.probes.info("DailyUsage: found \(allRecords.count) token records")
 
         // Partition into today and yesterday
         let todayRecords = allRecords.filter { record in
@@ -48,22 +52,29 @@ public struct LocalDailyUsageAnalyzer: DailyUsageAnalyzing, Sendable {
         let todayStat = aggregate(records: todayRecords, date: todayStart)
         let yesterdayStat = aggregate(records: yesterdayRecords, date: yesterdayStart)
 
+        AppLog.probes.info("DailyUsage: today=\(todayStat.formattedCost)/\(todayStat.formattedTokens), yesterday=\(yesterdayStat.formattedCost)/\(yesterdayStat.formattedTokens)")
+
         return DailyUsageReport(today: todayStat, previous: yesterdayStat)
     }
 
     // MARK: - Private
 
-    private func findJSONLFiles(in directory: URL) -> [URL] {
+    /// Only find JSONL files modified since the given date (performance optimization).
+    private func findRecentJSONLFiles(in directory: URL, since: Date) -> [URL] {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
             at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
+            includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
         var files: [URL] = []
         for case let fileURL as URL in enumerator {
-            if fileURL.pathExtension == "jsonl" {
+            guard fileURL.pathExtension == "jsonl" else { continue }
+            // Only include files modified since yesterday
+            if let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+               let modDate = values.contentModificationDate,
+               modDate >= since {
                 files.append(fileURL)
             }
         }

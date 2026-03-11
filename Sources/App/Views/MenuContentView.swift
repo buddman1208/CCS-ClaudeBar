@@ -391,7 +391,6 @@ struct MenuContentView: View {
                     accountCard(displayName: displayName, snapshot: snapshot)
                 }
                 statsGrid(snapshot: snapshot)
-                dailyUsageSection
             }
             .opacity(animateIn ? 1 : 0)
             .animation(.easeOut(duration: 0.5).delay(0.2), value: animateIn)
@@ -552,25 +551,10 @@ struct MenuContentView: View {
             if let bedrockUsage = snapshot.bedrockUsage {
                 BedrockUsageCard(usage: bedrockUsage, delay: Double(snapshot.quotas.count) * 0.08)
             }
-        }
-        .padding(.top, 4)
-    }
 
-    @ViewBuilder
-    private var dailyUsageSection: some View {
-        if let report = monitor.dailyReport, !report.today.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 5) {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(theme.textSecondary)
-
-                    Text("DAILY USAGE")
-                        .font(.system(size: 8, weight: .semibold, design: theme.fontDesign))
-                        .foregroundStyle(theme.textSecondary)
-                        .tracking(0.5)
-                }
-
+            // Show daily usage cards from JSONL session analysis (e.g., Claude Code)
+            if let report = snapshot.dailyUsageReport {
+                let baseDelay = Double(snapshot.quotas.count + 1) * 0.08
                 LazyVGrid(
                     columns: [
                         GridItem(.flexible(), spacing: 10),
@@ -578,14 +562,13 @@ struct MenuContentView: View {
                     ],
                     spacing: 10
                 ) {
-                    DailyUsageCardView(metric: .cost, report: report, delay: 0)
-                    DailyUsageCardView(metric: .tokens, report: report, delay: 0.08)
+                    DailyUsageCardView(metric: .cost, report: report, delay: baseDelay)
+                    DailyUsageCardView(metric: .tokens, report: report, delay: baseDelay + 0.08)
                 }
-
-                DailyUsageCardView(metric: .workingTime, report: report, delay: 0.16)
+                DailyUsageCardView(metric: .workingTime, report: report, delay: baseDelay + 0.16)
             }
-            .padding(.top, 4)
         }
+        .padding(.top, 4)
     }
 
     private var loadingState: some View {

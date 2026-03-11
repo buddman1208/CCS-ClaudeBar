@@ -26,6 +26,9 @@ public struct UsageSnapshot: Sendable, Equatable {
     /// Bedrock usage summary (for AWS Bedrock provider)
     public let bedrockUsage: BedrockUsageSummary?
 
+    /// Daily usage report from local session JSONL analysis (e.g., Claude Code)
+    public let dailyUsageReport: DailyUsageReport?
+
     // MARK: - Initialization
 
     public init(
@@ -37,7 +40,8 @@ public struct UsageSnapshot: Sendable, Equatable {
         loginMethod: String? = nil,
         accountTier: AccountTier? = nil,
         costUsage: CostUsage? = nil,
-        bedrockUsage: BedrockUsageSummary? = nil
+        bedrockUsage: BedrockUsageSummary? = nil,
+        dailyUsageReport: DailyUsageReport? = nil
     ) {
         self.providerId = providerId
         self.quotas = quotas
@@ -48,6 +52,7 @@ public struct UsageSnapshot: Sendable, Equatable {
         self.accountTier = accountTier
         self.costUsage = costUsage
         self.bedrockUsage = bedrockUsage
+        self.dailyUsageReport = dailyUsageReport
     }
 
     // MARK: - Domain Queries
