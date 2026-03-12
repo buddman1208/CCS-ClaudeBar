@@ -146,19 +146,17 @@ struct AlibabaProviderTests {
             capturedAt: Date()
         )
 
-        // First call fails, second succeeds
-        given(mockProbe).probe()
-            .willThrow(ProbeError.authenticationRequired)
-            .willReturn(snapshot)
-
         let repo = makeSettingsRepository()
         let provider = AlibabaProvider(probe: mockProbe, settingsRepository: repo)
 
-        // First refresh fails
+        // First call fails
+        given(mockProbe).probe().willThrow(ProbeError.authenticationRequired)
         _ = try? await provider.refresh()
         #expect(provider.lastError != nil)
 
-        // Second refresh succeeds and clears error
+        // Second call succeeds and clears error
+        mockProbe.reset(.allExceptPolicies)
+        given(mockProbe).probe().willReturn(snapshot)
         _ = try await provider.refresh()
         #expect(provider.lastError == nil)
         #expect(provider.snapshot != nil)
