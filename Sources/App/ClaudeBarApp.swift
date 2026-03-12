@@ -91,7 +91,7 @@ struct ClaudeBarApp: App {
                 settingsRepository: settingsRepository
             ),
             AlibabaProvider(
-                probe: AlibabaUsageProbe(settingsRepository: settingsRepository),
+                probe: AlibabaUsageProbe(settingsRepository: settingsRepository, cookieProvider: AlibabaBrowserCookieProvider()),
                 settingsRepository: settingsRepository
             ),
         ])
