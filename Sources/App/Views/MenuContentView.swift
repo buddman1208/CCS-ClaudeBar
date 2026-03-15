@@ -298,7 +298,11 @@ struct MenuContentView: View {
 
     /// Status of the currently selected provider
     private var selectedProviderStatus: QuotaStatus {
-        selectedProvider?.snapshot?.overallStatus ?? .healthy
+        guard let snapshot = selectedProvider?.snapshot else { return .healthy }
+        if settings.burnRateWarningEnabled {
+            return snapshot.paceAwareOverallStatus(burnRateThreshold: settings.burnRateThreshold)
+        }
+        return snapshot.overallStatus
     }
 
     /// Whether the selected provider is currently syncing

@@ -119,6 +119,15 @@ struct ClaudeBarApp: App {
     /// App settings for theme
     @State private var settings = AppSettings.shared
 
+    /// Status of selected provider, considering burn rate setting
+    private var effectiveSelectedProviderStatus: QuotaStatus {
+        guard let snapshot = monitor.selectedProvider?.snapshot else { return .healthy }
+        if settings.burnRateWarningEnabled {
+            return snapshot.paceAwareOverallStatus(burnRateThreshold: settings.burnRateThreshold)
+        }
+        return snapshot.overallStatus
+    }
+
     /// Current theme mode from settings
     private var currentThemeMode: ThemeMode {
         ThemeMode(rawValue: settings.themeMode) ?? .system
@@ -195,7 +204,7 @@ struct ClaudeBarApp: App {
             #endif
         } label: {
             // Show overall status + active session indicator in menu bar
-            StatusBarIcon(status: monitor.selectedProviderStatus, activeSession: sessionMonitor.activeSession)
+            StatusBarIcon(status: effectiveSelectedProviderStatus, activeSession: sessionMonitor.activeSession)
                 .appThemeProvider(themeModeId: settings.themeMode)
         }
         .menuBarExtraStyle(.window)

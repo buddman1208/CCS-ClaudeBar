@@ -123,6 +123,7 @@ struct SettingsContentView: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     backgroundSyncCard
+                    burnRateCard
                     hooksCard
                     launchAtLoginCard
                     #if ENABLE_SPARKLE
@@ -951,6 +952,70 @@ struct SettingsContentView: View {
                 .scaleEffect(0.8)
                 .labelsHidden()
         }
+    }
+
+    // MARK: - Burn Rate Card
+
+    private var burnRateCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(theme.accentGradient)
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: "flame")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(theme.id == "cli" ? theme.textPrimary : .white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Burn Rate Warnings")
+                        .font(.system(size: 14, weight: .bold, design: theme.fontDesign))
+                        .foregroundStyle(theme.textPrimary)
+
+                    Text("Warn based on consumption pace, not fixed thresholds")
+                        .font(.system(size: 10, weight: .medium, design: theme.fontDesign))
+                        .foregroundStyle(theme.textTertiary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $settings.burnRateWarningEnabled)
+                    .toggleStyle(.switch)
+                    .tint(theme.accentPrimary)
+                    .scaleEffect(0.8)
+                    .labelsHidden()
+            }
+
+            if settings.burnRateWarningEnabled {
+                HStack {
+                    Text("Threshold")
+                        .font(.system(size: 12, weight: .medium, design: theme.fontDesign))
+                        .foregroundStyle(theme.textSecondary)
+
+                    Spacer()
+
+                    Picker("", selection: $settings.burnRateThreshold) {
+                        Text("1.2x (Sensitive)").tag(1.2)
+                        Text("1.5x (Default)").tag(1.5)
+                        Text("2.0x (Relaxed)").tag(2.0)
+                        Text("3.0x (Very relaxed)").tag(3.0)
+                    }
+                    .pickerStyle(.menu)
+                    .tint(theme.accentPrimary)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: theme.cardCornerRadius)
+                .fill(theme.cardGradient)
+                .overlay(
+                    RoundedRectangle(cornerRadius: theme.cardCornerRadius)
+                        .stroke(theme.glassBorder, lineWidth: 1)
+                )
+        )
     }
 
     // MARK: - Hooks Card
