@@ -25,8 +25,18 @@ jobs:
       - name: Install Dependencies
         run: tuist install
 
+      - name: Generate Xcode Project
+        run: tuist generate
+
       - name: Run Tests with Coverage
-        run: tuist test --result-bundle-path TestResults.xcresult -- -enableCodeCoverage YES -skipMacroValidation
+        run: |
+          xcodebuild test \
+            -scheme ClaudeBar-Workspace \
+            -workspace ClaudeBar.xcworkspace \
+            -destination 'platform=macOS,arch=arm64' \
+            -enableCodeCoverage YES \
+            -skipMacroValidation \
+            -resultBundlePath TestResults.xcresult
 
       - name: Generate Coverage Report
         run: |
