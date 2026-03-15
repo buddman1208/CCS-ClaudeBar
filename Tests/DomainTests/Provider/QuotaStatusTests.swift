@@ -125,4 +125,68 @@ struct QuotaStatusTests {
         let statuses: Set<QuotaStatus> = [.healthy, .warning, .healthy]
         #expect(statuses.count == 2)
     }
+
+    // MARK: - Burn Rate (Pace-Aware) Tests
+
+    @Test
+    func `pace aware status is healthy when burn rate is below threshold`() {
+        // 57% used, 85% time elapsed → burn rate 0.67 → HEALTHY (issue example: Claude SESSION)
+        let status = QuotaStatus.from(percentRemaining: 43, percentTimeElapsed: 85, burnRateThreshold: 1.5)
+        #expect(status == .healthy)
+    }
+
+    @Test
+    func `pace aware status is warning when burn rate exceeds threshold`() {
+        // 53% used, 8.5% time elapsed → burn rate 6.2 → WARNING (issue example: Codex WEEKLY)
+        let status = QuotaStatus.from(percentRemaining: 47, percentTimeElapsed: 8.5, burnRateThreshold: 1.5)
+        #expect(status == .warning)
+    }
+
+    @Test
+    func `pace aware status is depleted regardless of burn rate`() {
+        // Depleted is always depleted, even if burn rate is low
+        let status = QuotaStatus.from(percentRemaining: 0, percentTimeElapsed: 99, burnRateThreshold: 1.5)
+        #expect(status == .depleted)
+    }
+
+    @Test
+    func `pace aware status is critical regardless of burn rate`() {
+        // Below 20% remaining is always critical (absolute safety net)
+        let status = QuotaStatus.from(percentRemaining: 15, percentTimeElapsed: 90, burnRateThreshold: 1.5)
+        #expect(status == .critical)
+    }
+
+    @Test
+    func `pace aware status is healthy when plenty remaining despite high burn rate`() {
+        // 10% used, 5% elapsed → burn rate 2.0, but 90% remaining — no warning yet
+        let status = QuotaStatus.from(percentRemaining: 90, percentTimeElapsed: 5, burnRateThreshold: 1.5)
+        #expect(status == .healthy)
+    }
+
+    @Test
+    func `pace aware status handles zero time elapsed gracefully`() {
+        // At the very start of a period, fall back to absolute thresholds
+        let status = QuotaStatus.from(percentRemaining: 43, percentTimeElapsed: 0, burnRateThreshold: 1.5)
+        #expect(status == .warning) // 43% remaining → absolute threshold says warning
+    }
+
+    @Test
+    func `pace aware status uses configurable threshold`() {
+        // 55% used, 30% elapsed → burn rate ~1.83, remaining = 45% < 50
+        // With threshold 1.5 → warning (1.83 > 1.5)
+        let warningStatus = QuotaStatus.from(percentRemaining: 45, percentTimeElapsed: 30, burnRateThreshold: 1.5)
+        #expect(warningStatus == .warning)
+
+        // With threshold 2.5 → healthy (1.83 < 2.5)
+        let healthyStatus = QuotaStatus.from(percentRemaining: 45, percentTimeElapsed: 30, burnRateThreshold: 2.5)
+        #expect(healthyStatus == .healthy)
+    }
+
+    @Test
+    func `pace aware status warns at boundary with remaining below 50`() {
+        // Burn rate matters only when remaining < 50% (meaningful warning zone)
+        // 55% used, 30% elapsed → burn rate ~1.83 > 1.5, remaining = 45% < 50 → warning
+        let status = QuotaStatus.from(percentRemaining: 45, percentTimeElapsed: 30, burnRateThreshold: 1.5)
+        #expect(status == .warning)
+    }
 }

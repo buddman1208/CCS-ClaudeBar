@@ -90,6 +90,22 @@ public final class AppSettings {
         }
     }
 
+    // MARK: - Burn Rate Warning Settings
+
+    /// Whether burn rate-based warnings are enabled (default: false, uses absolute thresholds)
+    public var burnRateWarningEnabled: Bool {
+        didSet {
+            repository.setBurnRateWarningEnabled(burnRateWarningEnabled)
+        }
+    }
+
+    /// The burn rate multiplier threshold above which warnings fire (default: 1.5)
+    public var burnRateThreshold: Double {
+        didSet {
+            repository.setBurnRateThreshold(burnRateThreshold)
+        }
+    }
+
     // MARK: - Update Settings
 
     /// Whether to receive beta updates (default: false)
@@ -133,6 +149,8 @@ public final class AppSettings {
         self.claudeApiBudgetEnabled = repository.claudeApiBudgetEnabled()
         self.claudeApiBudget = Decimal(repository.claudeApiBudget())
         self.receiveBetaUpdates = repository.receiveBetaUpdates()
+        self.burnRateWarningEnabled = repository.burnRateWarningEnabled()
+        self.burnRateThreshold = repository.burnRateThreshold()
         self.showDailyUsageCards = repository.showDailyUsageCards()
         self.overviewModeEnabled = repository.overviewModeEnabled()
         self.backgroundSyncEnabled = repository.backgroundSyncEnabled()

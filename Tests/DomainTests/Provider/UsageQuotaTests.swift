@@ -342,4 +342,62 @@ struct UsageQuotaTests {
         // When & Then
         #expect(quota.formattedDollarRemaining == nil)
     }
+
+    // MARK: - Burn Rate
+
+    @Test
+    func `burnRate is nil without resetsAt`() {
+        let quota = UsageQuota(percentRemaining: 50, quotaType: .session, providerId: "claude")
+        #expect(quota.burnRate == nil)
+    }
+
+    @Test
+    func `burnRate is calculated correctly when consuming faster than time`() {
+        // 70% used, ~25% time elapsed → burn rate ≈ 2.8
+        let resetsAt = Date().addingTimeInterval(3.75 * 3600) // 75% of 5h remaining
+        let quota = UsageQuota(
+            percentRemaining: 30,
+            quotaType: .session,
+            providerId: "claude",
+            resetsAt: resetsAt
+        )
+        let rate = quota.burnRate!
+        #expect(rate > 2.5 && rate < 3.1) // ~2.8, allow for test execution time
+    }
+
+    @Test
+    func `burnRate is below 1 when consuming slower than time`() {
+        // 25% used, ~50% time elapsed → burn rate ≈ 0.5
+        let resetsAt = Date().addingTimeInterval(2.5 * 3600) // 50% of 5h remaining
+        let quota = UsageQuota(
+            percentRemaining: 75,
+            quotaType: .session,
+            providerId: "claude",
+            resetsAt: resetsAt
+        )
+        let rate = quota.burnRate!
+        #expect(rate > 0.4 && rate < 0.6) // ~0.5
+    }
+
+    // MARK: - Pace-Aware Status
+
+    @Test
+    func `paceAwareStatus returns healthy when burn rate is low`() {
+        // 57% used, ~85% elapsed → burn rate ~0.67 → healthy
+        let resetsAt = Date().addingTimeInterval(0.75 * 3600) // 15% of 5h remaining
+        let quota = UsageQuota(
+            percentRemaining: 43,
+            quotaType: .session,
+            providerId: "claude",
+            resetsAt: resetsAt
+        )
+        #expect(quota.paceAwareStatus(burnRateThreshold: 1.5) == .healthy)
+    }
+
+    @Test
+    func `paceAwareStatus falls back to absolute thresholds without resetsAt`() {
+        let quota = UsageQuota(percentRemaining: 35, quotaType: .session, providerId: "claude")
+        // No reset time → falls back to absolute: 35% remaining → warning
+        #expect(quota.paceAwareStatus(burnRateThreshold: 1.5) == .warning)
+    }
 }

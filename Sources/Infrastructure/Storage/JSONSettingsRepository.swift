@@ -105,6 +105,24 @@ public final class JSONSettingsRepository:
         store.write(value: amount, key: "app.claudeApiBudget")
     }
 
+    // MARK: - Burn Rate Warning
+
+    public func burnRateWarningEnabled() -> Bool {
+        store.read(key: "app.burnRateWarningEnabled") ?? false
+    }
+
+    public func setBurnRateWarningEnabled(_ enabled: Bool) {
+        store.write(value: enabled, key: "app.burnRateWarningEnabled")
+    }
+
+    public func burnRateThreshold() -> Double {
+        store.read(key: "app.burnRateThreshold") ?? 1.5
+    }
+
+    public func setBurnRateThreshold(_ threshold: Double) {
+        store.write(value: threshold, key: "app.burnRateThreshold")
+    }
+
     public func receiveBetaUpdates() -> Bool {
         store.read(key: "app.receiveBetaUpdates") ?? false
     }

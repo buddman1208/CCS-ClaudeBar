@@ -45,6 +45,14 @@ public protocol AppSettingsRepository: Sendable {
     func claudeApiBudget() -> Double
     func setClaudeApiBudget(_ amount: Double)
 
+    // MARK: - Burn Rate Warning
+
+    func burnRateWarningEnabled() -> Bool
+    func setBurnRateWarningEnabled(_ enabled: Bool)
+
+    func burnRateThreshold() -> Double
+    func setBurnRateThreshold(_ threshold: Double)
+
     // MARK: - Updates
 
     func receiveBetaUpdates() -> Bool

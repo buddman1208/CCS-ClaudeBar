@@ -110,6 +110,31 @@ public struct UsageQuota: Sendable, Equatable, Hashable, Comparable {
         }
     }
 
+    // MARK: - Burn Rate
+
+    /// The burn rate: how fast quota is being consumed relative to time elapsed.
+    /// A burn rate of 1.0 means consuming exactly on pace.
+    /// A burn rate of 2.0 means consuming 2x faster than sustainable.
+    /// Returns nil when reset time is unknown.
+    public var burnRate: Double? {
+        guard let percentTimeElapsed, percentTimeElapsed > 0 else { return nil }
+        return percentUsed / percentTimeElapsed
+    }
+
+    /// Returns quota status using burn rate when time information is available.
+    /// Falls back to absolute thresholds when reset time is unknown.
+    /// - Parameter burnRateThreshold: The multiplier above which a warning fires (e.g., 1.5)
+    public func paceAwareStatus(burnRateThreshold: Double) -> QuotaStatus {
+        guard let percentTimeElapsed else {
+            return status // Fall back to absolute thresholds
+        }
+        return QuotaStatus.from(
+            percentRemaining: percentRemaining,
+            percentTimeElapsed: percentTimeElapsed,
+            burnRateThreshold: burnRateThreshold
+        )
+    }
+
     // MARK: - Pace
 
     /// The percentage of the reset period that has elapsed (0-100), or nil if no reset time is known.
