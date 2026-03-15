@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Burn Rate Warnings**: New pace-aware warning system that alerts based on consumption rate rather than fixed usage thresholds. Instead of warning at arbitrary percentages (e.g., 57% used = warning), it calculates whether you're on track to exhaust your quota before the period resets. For example, 57% used with 85% of the session elapsed is healthy (burn rate 0.67), while 53% used with only 8.5% of the week elapsed is a real warning (burn rate 6.2). Configurable threshold multiplier (1.2x–3.0x) in Settings. Disabled by default — opt in via Settings → Burn Rate Warnings. Critical (<20%) and depleted (0%) thresholds remain absolute as a safety net. ([#151](https://github.com/tddworks/ClaudeBar/issues/151))
+
 ---
 
 ## [0.4.47] - 2026-03-12
