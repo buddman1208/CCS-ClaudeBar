@@ -1,0 +1,41 @@
+{
+    "id": "example-provider",
+    "name": "Example Provider",
+    "version": "1.0.0",
+    "description": "A sample extension showing how to create custom provider cards",
+    "icon": "cpu.fill",
+    "colors": {
+        "primary": "#FF6B35",
+        "gradient": ["#FF6B35", "#F7C948"]
+    },
+    "dashboardURL": "https://example.com/usage",
+    "sections": [
+        {
+            "id": "quotas",
+            "type": "quotaGrid",
+            "probe": {
+                "command": "./probe-quota.sh",
+                "interval": 60,
+                "timeout": 10
+            }
+        },
+        {
+            "id": "metrics",
+            "type": "metricsRow",
+            "probe": {
+                "command": "./probe-metrics.sh",
+                "interval": 300,
+                "timeout": 15
+            }
+        },
+        {
+            "id": "daily",
+            "type": "dailyUsage",
+            "probe": {
+                "command": "./probe-daily.sh",
+                "interval": 300,
+                "timeout": 15
+            }
+        }
+    ]
+}
