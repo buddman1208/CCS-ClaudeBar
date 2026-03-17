@@ -55,6 +55,11 @@ public enum SectionData: Sendable, Equatable {
                 throw SectionDataError.missingKey("status")
             }
             return .status(status)
+
+        case .healthCheck:
+            // Health check data is produced by HealthCheckProbe directly, not from script JSON.
+            // This case should not be reached via SectionData.decode().
+            throw SectionDataError.missingKey("healthCheck (built-in probe, not script-based)")
         }
     }
 }

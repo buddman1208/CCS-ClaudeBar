@@ -61,16 +61,27 @@ public final class ExtensionRegistry: Sendable {
 
     private func createProbes(for result: ExtensionScanResult) -> [String: any UsageProbe] {
         var probes: [String: any UsageProbe] = [:]
+        let providerId = "ext-\(result.manifest.id)"
 
         for section in result.manifest.sections {
-            let probe = ScriptProbe(
-                scriptPath: section.probeCommand,
-                extensionDir: result.directory,
-                providerId: "ext-\(result.manifest.id)",
-                sectionType: section.type,
-                timeout: section.timeout,
-                cliExecutor: cliExecutor
-            )
+            let probe: any UsageProbe
+            switch section.probeConfig {
+            case .script(let command):
+                probe = ScriptProbe(
+                    scriptPath: command,
+                    extensionDir: result.directory,
+                    providerId: providerId,
+                    sectionType: section.type,
+                    timeout: section.timeout,
+                    cliExecutor: cliExecutor
+                )
+            case .healthCheck(let url):
+                probe = HealthCheckProbe(
+                    url: url,
+                    providerId: providerId,
+                    timeout: section.timeout
+                )
+            }
             probes[section.id] = probe
         }
 

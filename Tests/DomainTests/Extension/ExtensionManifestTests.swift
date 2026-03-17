@@ -201,6 +201,7 @@ struct ExtensionManifestTests {
             ("dailyUsage", .dailyUsage),
             ("metricsRow", .metricsRow),
             ("statusBanner", .statusBanner),
+            ("healthCheck", .healthCheck),
         ]
 
         for (jsonValue, expected) in types {
@@ -221,6 +222,88 @@ struct ExtensionManifestTests {
 
             let manifest = try ExtensionManifest.parse(from: json.data(using: .utf8)!)
             #expect(manifest.sections[0].type == expected, "Expected \(expected) for '\(jsonValue)'")
+        }
+    }
+
+    // MARK: - Built-in Health Check Probe
+
+    @Test
+    func `parses healthCheck builtIn probe config`() throws {
+        let json = """
+        {
+            "id": "my-api",
+            "name": "My API",
+            "version": "1.0.0",
+            "sections": [
+                {
+                    "id": "health",
+                    "type": "healthCheck",
+                    "probe": {
+                        "builtIn": "healthCheck",
+                        "url": "https://api.example.com/health",
+                        "interval": 30
+                    }
+                }
+            ]
+        }
+        """
+
+        let manifest = try ExtensionManifest.parse(from: json.data(using: .utf8)!)
+        let section = manifest.sections[0]
+
+        #expect(section.type == .healthCheck)
+        #expect(section.probeConfig == .healthCheck(url: URL(string: "https://api.example.com/health")!))
+        #expect(section.refreshInterval == 30)
+        #expect(section.probeCommand == "")
+    }
+
+    @Test
+    func `parses mixed script and healthCheck sections`() throws {
+        let json = """
+        {
+            "id": "mixed",
+            "name": "Mixed",
+            "version": "1.0.0",
+            "sections": [
+                {
+                    "id": "health",
+                    "type": "healthCheck",
+                    "probe": { "builtIn": "healthCheck", "url": "https://example.com/ping" }
+                },
+                {
+                    "id": "quotas",
+                    "type": "quotaGrid",
+                    "probe": { "command": "./probe.sh" }
+                }
+            ]
+        }
+        """
+
+        let manifest = try ExtensionManifest.parse(from: json.data(using: .utf8)!)
+
+        #expect(manifest.sections[0].probeConfig == .healthCheck(url: URL(string: "https://example.com/ping")!))
+        #expect(manifest.sections[1].probeConfig == .script("./probe.sh"))
+    }
+
+    @Test
+    func `throws on builtIn probe without url`() {
+        let json = """
+        {
+            "id": "test",
+            "name": "Test",
+            "version": "1.0.0",
+            "sections": [
+                {
+                    "id": "health",
+                    "type": "healthCheck",
+                    "probe": { "builtIn": "healthCheck" }
+                }
+            ]
+        }
+        """
+
+        #expect(throws: ExtensionManifestError.self) {
+            try ExtensionManifest.parse(from: json.data(using: .utf8)!)
         }
     }
 }

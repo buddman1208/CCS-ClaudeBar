@@ -1,12 +1,20 @@
 import Foundation
 
-/// Defines a single section within an extension, with its own probe command and refresh interval.
+/// Defines a single section within an extension, with its own probe config and refresh interval.
 public struct ExtensionSection: Sendable, Equatable {
     public let id: String
     public let type: SectionType
-    public let probeCommand: String
+    public let probeConfig: ProbeConfig
     public let refreshInterval: TimeInterval
     public let timeout: TimeInterval
+
+    /// Convenience accessor for script command (nil for built-in probes)
+    public var probeCommand: String {
+        switch probeConfig {
+        case .script(let command): return command
+        case .healthCheck: return ""
+        }
+    }
 
     public init(
         id: String,
@@ -17,10 +25,32 @@ public struct ExtensionSection: Sendable, Equatable {
     ) {
         self.id = id
         self.type = type
-        self.probeCommand = probeCommand
+        self.probeConfig = .script(probeCommand)
         self.refreshInterval = refreshInterval
         self.timeout = timeout
     }
+
+    public init(
+        id: String,
+        type: SectionType,
+        probeConfig: ProbeConfig,
+        refreshInterval: TimeInterval = 60,
+        timeout: TimeInterval = 10
+    ) {
+        self.id = id
+        self.type = type
+        self.probeConfig = probeConfig
+        self.refreshInterval = refreshInterval
+        self.timeout = timeout
+    }
+}
+
+/// How a section acquires its data.
+public enum ProbeConfig: Sendable, Equatable {
+    /// External script that outputs JSON to stdout
+    case script(String)
+    /// Built-in health check that pings a URL
+    case healthCheck(url: URL)
 }
 
 /// The type of UI section an extension section renders as.
@@ -35,4 +65,6 @@ public enum SectionType: String, Sendable, Equatable {
     case metricsRow
     /// Simple status banner (e.g., "Active", "Connected")
     case statusBanner
+    /// Built-in health check (ping URL, show latency + status)
+    case healthCheck
 }

@@ -48,10 +48,22 @@ public struct ExtensionManifest: Sendable, Equatable {
             guard let type = SectionType(rawValue: rawSection.type) else {
                 throw ExtensionManifestError.unknownSectionType(rawSection.type)
             }
+
+            let probeConfig: ProbeConfig
+            if let builtIn = rawSection.probe.builtIn, builtIn == "healthCheck",
+               let urlString = rawSection.probe.url,
+               let url = URL(string: urlString) {
+                probeConfig = .healthCheck(url: url)
+            } else if let command = rawSection.probe.command {
+                probeConfig = .script(command)
+            } else {
+                throw ExtensionManifestError.invalidProbeConfig(rawSection.id)
+            }
+
             return ExtensionSection(
                 id: rawSection.id,
                 type: type,
-                probeCommand: rawSection.probe.command,
+                probeConfig: probeConfig,
                 refreshInterval: rawSection.probe.interval ?? 60,
                 timeout: rawSection.probe.timeout ?? 10
             )
@@ -86,6 +98,7 @@ public struct ExtensionColors: Sendable, Equatable, Codable {
 public enum ExtensionManifestError: Error, LocalizedError {
     case emptySections
     case unknownSectionType(String)
+    case invalidProbeConfig(String)
 
     public var errorDescription: String? {
         switch self {
@@ -93,6 +106,8 @@ public enum ExtensionManifestError: Error, LocalizedError {
             "Extension manifest must have at least one section"
         case .unknownSectionType(let type):
             "Unknown section type: '\(type)'"
+        case .invalidProbeConfig(let sectionId):
+            "Section '\(sectionId)' must have either 'command' or 'builtIn' + 'url' in probe config"
         }
     }
 }
@@ -118,7 +133,9 @@ private struct RawSection: Codable {
 }
 
 private struct RawProbe: Codable {
-    let command: String
+    let command: String?
+    let builtIn: String?
+    let url: String?
     let interval: TimeInterval?
     let timeout: TimeInterval?
 }

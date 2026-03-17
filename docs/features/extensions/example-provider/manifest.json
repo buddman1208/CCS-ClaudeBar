@@ -11,6 +11,16 @@
     "dashboardURL": "https://example.com/usage",
     "sections": [
         {
+            "id": "health",
+            "type": "healthCheck",
+            "probe": {
+                "builtIn": "healthCheck",
+                "url": "https://api.example.com/health",
+                "interval": 30,
+                "timeout": 5
+            }
+        },
+        {
             "id": "quotas",
             "type": "quotaGrid",
             "probe": {
