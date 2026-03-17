@@ -104,7 +104,6 @@ jobs:
       - name: Generate Xcode Project
         run: |
           tuist generate --no-open
-          ./scripts/fix-swiftterm-metal.sh
           echo "=== Available schemes ==="
           xcodebuild -workspace ClaudeBar.xcworkspace -list
 

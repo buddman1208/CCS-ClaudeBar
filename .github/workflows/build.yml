@@ -30,13 +30,8 @@ jobs:
       - name: Install Dependencies
         run: tuist install
 
-      - name: Generate Project
-        run: |
-          tuist generate --no-open
-          ./scripts/fix-swiftterm-metal.sh
-
       - name: Build Debug
-        run: xcodebuild build -scheme ClaudeBar -workspace ClaudeBar.xcworkspace -destination 'platform=macOS,arch=arm64'
+        run: tuist build
 
       - name: Build Release
-        run: xcodebuild build -scheme ClaudeBar -workspace ClaudeBar.xcworkspace -destination 'platform=macOS,arch=arm64' -configuration Release
+        run: tuist build ClaudeBar -- -configuration Release

@@ -25,20 +25,8 @@ jobs:
       - name: Install Dependencies
         run: tuist install
 
-      - name: Generate Project
-        run: |
-          tuist generate --no-open
-          ./scripts/fix-swiftterm-metal.sh
-
       - name: Run Tests with Coverage
-        run: |
-          xcodebuild test \
-            -scheme ClaudeBar \
-            -workspace ClaudeBar.xcworkspace \
-            -destination 'platform=macOS,arch=arm64' \
-            -enableCodeCoverage YES \
-            -skipMacroValidation \
-            -resultBundlePath TestResults.xcresult
+        run: tuist test --result-bundle-path TestResults.xcresult -- -enableCodeCoverage YES -skipMacroValidation
 
       - name: Generate Coverage Report
         run: |
