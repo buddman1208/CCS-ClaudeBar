@@ -37,12 +37,16 @@ struct ExtensionMetricCardView: View {
                     .font(.system(size: 24, weight: .bold, design: theme.fontDesign))
                     .foregroundStyle(theme.textPrimary)
                     .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
 
                 Spacer()
 
                 Text(metric.unit)
                     .font(.system(size: 11, weight: .medium, design: theme.fontDesign))
                     .foregroundStyle(theme.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
 
             // Progress bar (if progress provided)
