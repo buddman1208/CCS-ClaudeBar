@@ -206,6 +206,11 @@ public final class AppSettings {
     public var minimax: MiniMaxSettingsRepository { repository }
     public var alibaba: AlibabaSettingsRepository { repository }
     public var hook: HookSettingsRepository { repository }
+
+    /// Extension config repository for dynamic extension provider settings.
+    public let extensionConfig: any ExtensionConfigRepository = JSONExtensionConfigRepository(
+        settingsStore: .shared
+    )
 }
 
 // MARK: - Notification Names

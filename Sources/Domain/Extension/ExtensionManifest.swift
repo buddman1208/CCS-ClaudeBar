@@ -11,7 +11,11 @@ public struct ExtensionManifest: Sendable, Equatable {
     public let colors: ExtensionColors?
     public let dashboardURL: URL?
     public let statusPageURL: URL?
+    public let configFields: [ConfigField]
     public let sections: [ExtensionSection]
+
+    /// Whether this extension declares any user-configurable fields.
+    public var hasConfig: Bool { !configFields.isEmpty }
 
     public init(
         id: String,
@@ -22,6 +26,7 @@ public struct ExtensionManifest: Sendable, Equatable {
         colors: ExtensionColors? = nil,
         dashboardURL: URL? = nil,
         statusPageURL: URL? = nil,
+        configFields: [ConfigField] = [],
         sections: [ExtensionSection]
     ) {
         self.id = id
@@ -32,6 +37,7 @@ public struct ExtensionManifest: Sendable, Equatable {
         self.colors = colors
         self.dashboardURL = dashboardURL
         self.statusPageURL = statusPageURL
+        self.configFields = configFields
         self.sections = sections
     }
 
@@ -78,6 +84,7 @@ public struct ExtensionManifest: Sendable, Equatable {
             colors: raw.colors,
             dashboardURL: raw.dashboardURL.flatMap { URL(string: $0) },
             statusPageURL: raw.statusPageURL.flatMap { URL(string: $0) },
+            configFields: raw.config ?? [],
             sections: sections
         )
     }
@@ -123,6 +130,7 @@ private struct RawManifest: Codable {
     let colors: ExtensionColors?
     let dashboardURL: String?
     let statusPageURL: String?
+    let config: [ConfigField]?
     let sections: [RawSection]
 }
 

@@ -306,4 +306,86 @@ struct ExtensionManifestTests {
             try ExtensionManifest.parse(from: json.data(using: .utf8)!)
         }
     }
+
+    // MARK: - Config Fields
+
+    @Test
+    func `parses manifest with config fields`() throws {
+        let json = """
+        {
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "version": "1.0.0",
+            "config": [
+                {
+                    "id": "apiKey",
+                    "label": "API Key",
+                    "type": "secret",
+                    "required": true,
+                    "placeholder": "sk-or-v1-..."
+                },
+                {
+                    "id": "baseUrl",
+                    "label": "Base URL",
+                    "type": "string",
+                    "default": "https://openrouter.ai/api/v1"
+                }
+            ],
+            "sections": [
+                {
+                    "id": "quotas",
+                    "type": "quotaGrid",
+                    "probe": { "command": "./probe.sh" }
+                }
+            ]
+        }
+        """
+
+        let manifest = try ExtensionManifest.parse(from: json.data(using: .utf8)!)
+
+        #expect(manifest.configFields.count == 2)
+        #expect(manifest.configFields[0].id == "apiKey")
+        #expect(manifest.configFields[0].type == .secret)
+        #expect(manifest.configFields[0].required == true)
+        #expect(manifest.configFields[1].id == "baseUrl")
+        #expect(manifest.configFields[1].defaultValue == "https://openrouter.ai/api/v1")
+    }
+
+    @Test
+    func `parses manifest without config fields as empty array`() throws {
+        let json = """
+        {
+            "id": "simple",
+            "name": "Simple",
+            "version": "1.0.0",
+            "sections": [
+                {
+                    "id": "quotas",
+                    "type": "quotaGrid",
+                    "probe": { "command": "./probe.sh" }
+                }
+            ]
+        }
+        """
+
+        let manifest = try ExtensionManifest.parse(from: json.data(using: .utf8)!)
+
+        #expect(manifest.configFields.isEmpty)
+    }
+
+    @Test
+    func `manifest hasConfig returns true only when config fields exist`() throws {
+        let withConfig = ExtensionManifest(
+            id: "test", name: "Test", version: "1.0.0",
+            configFields: [ConfigField(id: "key", label: "Key", type: .string)],
+            sections: [ExtensionSection(id: "s", type: .quotaGrid, probeCommand: "./p.sh")]
+        )
+        let withoutConfig = ExtensionManifest(
+            id: "test", name: "Test", version: "1.0.0",
+            sections: [ExtensionSection(id: "s", type: .quotaGrid, probeCommand: "./p.sh")]
+        )
+
+        #expect(withConfig.hasConfig == true)
+        #expect(withoutConfig.hasConfig == false)
+    }
 }

@@ -119,7 +119,7 @@ struct ExtensionMetricCardView: View {
 
 // MARK: - Color from Hex
 
-private extension Color {
+extension Color {
     init?(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
         guard hex.count == 6,

@@ -6,6 +6,7 @@ public final class ExtensionRegistry: Sendable {
     private let extensionsDirectory: URL
     private let scanner: ExtensionDirectoryScanner
     private let settingsRepository: ProviderSettingsRepository
+    private let configRepository: (any ExtensionConfigRepository)?
     private let cliExecutor: CLIExecutor?
 
     /// Default extensions directory: ~/.claudebar/extensions/
@@ -19,11 +20,13 @@ public final class ExtensionRegistry: Sendable {
         extensionsDirectory: URL? = nil,
         scanner: ExtensionDirectoryScanner = ExtensionDirectoryScanner(),
         settingsRepository: ProviderSettingsRepository,
+        configRepository: (any ExtensionConfigRepository)? = nil,
         cliExecutor: CLIExecutor? = nil
     ) {
         self.extensionsDirectory = extensionsDirectory ?? Self.defaultDirectory
         self.scanner = scanner
         self.settingsRepository = settingsRepository
+        self.configRepository = configRepository
         self.cliExecutor = cliExecutor
     }
 
@@ -73,7 +76,9 @@ public final class ExtensionRegistry: Sendable {
                     providerId: providerId,
                     sectionType: section.type,
                     timeout: section.timeout,
-                    cliExecutor: cliExecutor
+                    cliExecutor: cliExecutor,
+                    configRepository: configRepository,
+                    manifest: result.manifest
                 )
             case .healthCheck(let url):
                 probe = HealthCheckProbe(

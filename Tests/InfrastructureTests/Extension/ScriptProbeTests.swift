@@ -191,6 +191,89 @@ struct ScriptProbeTests {
         #expect(available == true)
     }
 
+    // MARK: - Config Injection
+
+    @Test
+    func `probe injects config values as env vars in command`() async throws {
+        let scriptOutput = """
+        { "quotas": [{ "type": "session", "percentRemaining": 80.0 }] }
+        """
+
+        let executor = MockCLIExecutor()
+        var capturedArgs: [String] = []
+        given(executor)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .willProduce { _, args, _, _, _, _ in
+                capturedArgs = args
+                return CLIResult(output: scriptOutput, exitCode: 0)
+            }
+
+        let configRepo = MockExtensionConfigRepository()
+        let fields = [
+            ConfigField(id: "apiKey", label: "Key", type: .secret),
+            ConfigField(id: "baseUrl", label: "URL", type: .string, defaultValue: "https://default.com"),
+        ]
+        given(configRepo)
+            .allValues(forExtensionId: .value("openrouter"), fields: .any)
+            .willReturn(["apiKey": "sk-123", "baseUrl": "https://custom.com"])
+
+        let manifest = ExtensionManifest(
+            id: "openrouter", name: "OpenRouter", version: "1.0.0",
+            configFields: fields,
+            sections: [ExtensionSection(id: "q", type: .quotaGrid, probeCommand: "./probe.sh")]
+        )
+
+        let probe = ScriptProbe(
+            scriptPath: "./probe.sh",
+            extensionDir: URL(filePath: "/ext"),
+            providerId: "ext-openrouter",
+            sectionType: .quotaGrid,
+            timeout: 10,
+            cliExecutor: executor,
+            configRepository: configRepo,
+            manifest: manifest
+        )
+
+        _ = try await probe.probe()
+
+        // The command should contain env var exports before the script
+        let command = capturedArgs.last ?? ""
+        #expect(command.contains("CLAUDEBAR_API_KEY="))
+        #expect(command.contains("CLAUDEBAR_BASE_URL="))
+        #expect(command.contains("./probe.sh"))
+    }
+
+    @Test
+    func `probe runs without env vars when no config fields`() async throws {
+        let scriptOutput = """
+        { "quotas": [{ "type": "session", "percentRemaining": 80.0 }] }
+        """
+
+        let executor = MockCLIExecutor()
+        var capturedArgs: [String] = []
+        given(executor)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .willProduce { _, args, _, _, _, _ in
+                capturedArgs = args
+                return CLIResult(output: scriptOutput, exitCode: 0)
+            }
+
+        let probe = ScriptProbe(
+            scriptPath: "./probe.sh",
+            extensionDir: URL(filePath: "/ext"),
+            providerId: "test",
+            sectionType: .quotaGrid,
+            timeout: 10,
+            cliExecutor: executor
+        )
+
+        _ = try await probe.probe()
+
+        // No env prefix — just the raw script path
+        let command = capturedArgs.last ?? ""
+        #expect(!command.contains("CLAUDEBAR_"))
+    }
+
     @Test
     func `isAvailable returns false when script does not exist`() async {
         let executor = MockCLIExecutor()

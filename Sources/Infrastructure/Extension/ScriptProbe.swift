@@ -10,6 +10,8 @@ public final class ScriptProbe: UsageProbe, @unchecked Sendable {
     private let sectionType: SectionType
     private let timeout: TimeInterval
     private let cliExecutor: CLIExecutor
+    private let configRepository: (any ExtensionConfigRepository)?
+    private let manifest: ExtensionManifest?
 
     public init(
         scriptPath: String,
@@ -17,7 +19,9 @@ public final class ScriptProbe: UsageProbe, @unchecked Sendable {
         providerId: String,
         sectionType: SectionType,
         timeout: TimeInterval = 10,
-        cliExecutor: CLIExecutor? = nil
+        cliExecutor: CLIExecutor? = nil,
+        configRepository: (any ExtensionConfigRepository)? = nil,
+        manifest: ExtensionManifest? = nil
     ) {
         self.scriptPath = scriptPath
         self.extensionDir = extensionDir
@@ -25,14 +29,16 @@ public final class ScriptProbe: UsageProbe, @unchecked Sendable {
         self.sectionType = sectionType
         self.timeout = timeout
         self.cliExecutor = cliExecutor ?? DefaultCLIExecutor()
+        self.configRepository = configRepository
+        self.manifest = manifest
     }
 
     public func probe() async throws -> UsageSnapshot {
-        let resolvedPath = resolveScriptPath()
+        let command = buildCommand()
 
         let result = try cliExecutor.execute(
             binary: "/bin/sh",
-            args: ["-c", resolvedPath],
+            args: ["-c", command],
             input: nil,
             timeout: timeout,
             workingDirectory: extensionDir,
@@ -57,6 +63,28 @@ public final class ScriptProbe: UsageProbe, @unchecked Sendable {
     }
 
     // MARK: - Private
+
+    private func buildCommand() -> String {
+        let resolvedPath = resolveScriptPath()
+
+        guard let configRepository, let manifest, !manifest.configFields.isEmpty else {
+            return resolvedPath
+        }
+
+        let values = configRepository.allValues(forExtensionId: manifest.id, fields: manifest.configFields)
+        guard !values.isEmpty else {
+            return resolvedPath
+        }
+
+        // Build "env VAR1=val1 VAR2=val2 ./probe.sh" command
+        let envPairs = manifest.configFields.compactMap { field -> String? in
+            guard let value = values[field.id] else { return nil }
+            let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+            return "\(field.environmentVariableName)='\(escaped)'"
+        }
+
+        return "env \(envPairs.joined(separator: " ")) \(resolvedPath)"
+    }
 
     private func resolveScriptPath() -> String {
         if scriptPath.hasPrefix("/") {
