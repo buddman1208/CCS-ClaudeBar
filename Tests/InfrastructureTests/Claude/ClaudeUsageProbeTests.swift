@@ -290,65 +290,7 @@ struct ClaudeUsageProbeTests {
         #expect(snapshot.quotas.count >= 1)
     }
 
-    // MARK: - Account Info from Config File
-
-    @Test
-    func `readAccountInfoFromConfig extracts email and displayName from oauthAccount`() {
-        // Given - a .claude.json with oauthAccount section
-        let configJSON = """
-        {
-            "oauthAccount": {
-                "accountUuid": "abc-123",
-                "emailAddress": "user@example.com",
-                "organizationUuid": "org-456",
-                "displayName": "testuser",
-                "billingType": "stripe_subscription"
-            }
-        }
-        """
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        let configFile = tempDir.appendingPathComponent(".claude.json")
-        try! configJSON.data(using: .utf8)!.write(to: configFile)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let probe = ClaudeUsageProbe()
-
-        // When
-        let accountInfo = probe.readAccountInfoFromConfig(configURL: configFile)
-
-        // Then
-        #expect(accountInfo?.email == "user@example.com")
-        #expect(accountInfo?.displayName == "testuser")
-        #expect(accountInfo?.organizationUuid == "org-456")
-    }
-
-    @Test
-    func `readAccountInfoFromConfig returns nil when file does not exist`() {
-        let probe = ClaudeUsageProbe()
-        let bogusURL = FileManager.default.temporaryDirectory.appendingPathComponent("nonexistent.json")
-
-        let result = probe.readAccountInfoFromConfig(configURL: bogusURL)
-
-        #expect(result == nil)
-    }
-
-    @Test
-    func `readAccountInfoFromConfig returns nil when oauthAccount is missing`() {
-        let configJSON = """
-        { "numStartups": 100 }
-        """
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        let configFile = tempDir.appendingPathComponent(".claude.json")
-        try! configJSON.data(using: .utf8)!.write(to: configFile)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let probe = ClaudeUsageProbe()
-        let result = probe.readAccountInfoFromConfig(configURL: configFile)
-
-        #expect(result == nil)
-    }
+    // MARK: - Account Info Enrichment (via ClaudeAccountInfoResolver)
 
     @Test
     func `probe enriches snapshot with config account info when CLI output has no header`() async throws {
