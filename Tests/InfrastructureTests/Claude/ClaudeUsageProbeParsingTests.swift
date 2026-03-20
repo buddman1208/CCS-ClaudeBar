@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Mockable
 @testable import Infrastructure
 @testable import Domain
 
@@ -117,42 +118,30 @@ struct ClaudeUsageProbeParsingTests {
         #expect(snapshot.sessionQuota?.isDepleted == true)
     }
 
-    // MARK: - Parsing Account Info
+    // MARK: - Account Info from Resolver
 
     @Test
-    func `extracts user email from output`() throws {
-        // Given
-        let output = Self.sampleClaudeOutput
+    func `account info comes from resolver not CLI output`() throws {
+        // Given - resolver provides account info
+        let mockResolver = MockAccountInfoResolving()
+        given(mockResolver).resolve().willReturn(AccountInfo(email: "user@example.com", organization: "Acme Corp"))
 
-        // When
-        let snapshot = try simulateParse(text: output)
+        // When - parse with resolver
+        let snapshot = try ClaudeUsageProbe.parse(Self.sampleClaudeOutput, accountInfoResolver: mockResolver)
 
-        // Then
+        // Then - account info from resolver
         #expect(snapshot.accountEmail == "user@example.com")
-    }
-
-    @Test
-    func `extracts organization from output`() throws {
-        // Given
-        let output = Self.sampleClaudeOutput
-
-        // When
-        let snapshot = try simulateParse(text: output)
-
-        // Then
         #expect(snapshot.accountOrganization == "Acme Corp")
     }
 
     @Test
-    func `extracts login method from output`() throws {
-        // Given
-        let output = Self.sampleClaudeOutput
+    func `account info is nil when resolver returns nil`() throws {
+        // Given - no resolver (default)
+        let snapshot = try simulateParse(text: Self.sampleClaudeOutput)
 
-        // When
-        let snapshot = try simulateParse(text: output)
-
-        // Then
-        #expect(snapshot.loginMethod == "Claude Max")
+        // Then - no account info
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.accountOrganization == nil)
     }
 
     // MARK: - Error Detection
@@ -396,7 +385,6 @@ struct ClaudeUsageProbeParsingTests {
 
         // Then
         #expect(snapshot.accountTier == .claudePro)
-        #expect(snapshot.accountOrganization == "Some User")
         #expect(snapshot.sessionQuota != nil)
         #expect(snapshot.sessionQuota?.percentRemaining == 99) // 1% used = 99% left
         #expect(snapshot.weeklyQuota != nil)
@@ -411,7 +399,6 @@ struct ClaudeUsageProbeParsingTests {
 
         // Then
         #expect(snapshot.accountTier == .claudePro)
-        #expect(snapshot.accountOrganization == "Some User")
         #expect(snapshot.sessionQuota != nil)
         #expect(snapshot.sessionQuota?.percentRemaining == 99) // 1% used = 99% left
         #expect(snapshot.weeklyQuota != nil)

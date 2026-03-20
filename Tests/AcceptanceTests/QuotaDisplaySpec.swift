@@ -60,7 +60,10 @@ struct QuotaDisplaySpec {
                 Login method: Claude Max
                 """, exitCode: 0))
 
-            let probe = ClaudeUsageProbe(cliExecutor: mockExecutor)
+            let mockResolver = MockAccountInfoResolving()
+            given(mockResolver).resolve().willReturn(Domain.AccountInfo(email: "user@example.com", organization: "Acme Corp"))
+
+            let probe = ClaudeUsageProbe(cliExecutor: mockExecutor, accountInfoResolver: mockResolver)
             let claude = ClaudeProvider(probe: probe, settingsRepository: Self.makeSettings())
             let monitor = QuotaMonitor(
                 providers: AIProviders(providers: [claude]),

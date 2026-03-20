@@ -4,7 +4,7 @@ import Domain
 /// Resolves Claude account identity from the config file (`~/.claude.json` → `oauthAccount`).
 /// This is the primary source of account info for CLI v2.1.79+ where the tabbed TUI
 /// no longer includes account details in the `/usage` output.
-public final class ClaudeAccountInfoResolver: Sendable {
+public final class ClaudeAccountInfoResolver: AccountInfoResolving, Sendable {
     private let configURL: URL
 
     public init(configURL: URL? = nil) {
