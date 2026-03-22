@@ -572,7 +572,9 @@ struct MenuContentView: View {
                     DailyUsageCardView(metric: .cost, report: report, delay: baseDelay)
                     DailyUsageCardView(metric: .tokens, report: report, delay: baseDelay + 0.08)
                 }
-                DailyUsageCardView(metric: .workingTime, report: report, delay: baseDelay + 0.16)
+                if report.today.workingTime > 0 || report.previous.workingTime > 0 {
+                    DailyUsageCardView(metric: .workingTime, report: report, delay: baseDelay + 0.16)
+                }
             }
 
             // Show extension metrics cards (from extension probes)

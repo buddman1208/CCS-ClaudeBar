@@ -24,8 +24,10 @@ struct VibeSessionLogAnalyzerTests {
         date: Date = Date(),
         suffix: String = "abcdef"
     ) -> URL {
+        // Directory name mirrors Vibe format: session_YYYYMMDD_HHMMSS_sessionid (UTC)
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd"
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        formatter.timeZone = TimeZone(identifier: "UTC")
         let dateStr = formatter.string(from: date)
         let name = "session_\(dateStr)_\(suffix)"
         let dir = baseDir.appendingPathComponent(name)
@@ -36,28 +38,18 @@ struct VibeSessionLogAnalyzerTests {
     private func writeMetadata(
         to dir: URL,
         promptTokens: Int,
-        completionTokens: Int,
-        startTime: String? = "2026-03-20T10:00:00Z",
-        endTime: String? = "2026-03-20T11:00:00Z"
+        completionTokens: Int
     ) {
-        var json = """
+        let json = """
         {
             "stats": {
                 "session_prompt_tokens": \(promptTokens),
                 "session_completion_tokens": \(completionTokens)
             }
+        }
         """
-        if let start = startTime {
-            json += ","
-            json += "\n    \"start_time\": \"\(start)\""
-        }
-        if let end = endTime {
-            json += ","
-            json += "\n    \"end_time\": \"\(end)\""
-        }
-        json += "\n}"
         let data = json.data(using: .utf8)!
-        let metadataURL = dir.appendingPathComponent("metadata.json")
+        let metadataURL = dir.appendingPathComponent("meta.json")
         try? data.write(to: metadataURL)
     }
 
@@ -182,30 +174,5 @@ struct VibeSessionLogAnalyzerTests {
         #expect(report.today.totalCost == Decimal(string: "2.40")!)
     }
 
-    @Test func `computes working time from start and end time`() async throws {
-        let tempDir = makeTempDir()
-        defer { cleanup(tempDir) }
 
-        let sessionDir = makeSessionDir(in: tempDir)
-        // 1 hour session
-        writeMetadata(
-            to: sessionDir,
-            promptTokens: 100,
-            completionTokens: 50,
-            startTime: "2026-03-20T10:00:00Z",
-            endTime: "2026-03-20T11:00:00Z"
-        )
-
-        let now = ISO8601DateFormatter().date(from: "2026-03-20T12:00:00Z")!
-        let analyzer = VibeSessionLogAnalyzer(
-            vibeSessionsDir: tempDir,
-            now: { now }
-        )
-
-        let report = try await analyzer.analyzeToday()
-
-        // Working time should be approximately 3600 seconds
-        #expect(report.today.workingTime >= 3590)
-        #expect(report.today.workingTime <= 3610)
-    }
 }

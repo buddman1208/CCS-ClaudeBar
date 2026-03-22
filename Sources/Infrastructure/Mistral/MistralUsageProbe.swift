@@ -36,18 +36,10 @@ public struct MistralUsageProbe: UsageProbe {
 
         AppLog.probes.info("Mistral Vibe logs: \(report.today.totalTokens) tokens today, cost \(report.today.formattedCost)")
 
-        let costUsage = CostUsage(
-            totalCost: report.today.totalCost,
-            apiDuration: report.today.workingTime,
-            wallDuration: report.today.workingTime,
-            providerId: "mistral"
-        )
-
         return UsageSnapshot(
             providerId: "mistral",
             quotas: [],
             capturedAt: Date(),
-            costUsage: costUsage,
             dailyUsageReport: report
         )
     }

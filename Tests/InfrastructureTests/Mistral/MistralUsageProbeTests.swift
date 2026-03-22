@@ -71,10 +71,8 @@ struct MistralUsageProbeTests {
 
         #expect(snapshot.providerId == "mistral")
         #expect(snapshot.quotas.isEmpty)
-        #expect(snapshot.costUsage != nil)
+        #expect(snapshot.costUsage == nil)
         #expect(snapshot.dailyUsageReport != nil)
-        #expect(snapshot.costUsage?.providerId == "mistral")
-        #expect(snapshot.costUsage?.totalCost == Decimal(string: "0.05"))
     }
 
     @Test func `probe throws when log analyzer throws`() async {

@@ -2,7 +2,7 @@ import Foundation
 import Domain
 
 /// Analyzes Vibe session log files to produce daily usage reports.
-/// Reads from ~/.vibe/logs/session/session_YYYYMMDD_*/metadata.json
+/// Reads from ~/.vibe/logs/session/session_YYYYMMDD_HHMMSS_*/meta.json
 public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
     private let vibeSessionsDir: URL
     private let calendar: Calendar
@@ -53,7 +53,6 @@ public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
         let date: Date
         let promptTokens: Int
         let completionTokens: Int
-        let workingTime: TimeInterval
     }
 
     private func loadSessions() -> [ParsedSession] {
@@ -72,18 +71,19 @@ public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
             guard fileManager.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else { continue }
 
             let name = entry.lastPathComponent
-            guard name.hasPrefix("session_"), name.count > 16 else { continue }
+            guard name.hasPrefix("session_") else { continue }
 
-            // Extract date from directory name: session_YYYYMMDD_suffix
-            let parts = name.split(separator: "_", maxSplits: 2)
-            guard parts.count >= 2 else { continue }
-            let dateStr = String(parts[1])
-            guard let sessionDate = parseSessionDate(dateStr) else {
-                AppLog.probes.debug("VibeSessionLogAnalyzer: skipping dir with unparseable date: \(name)")
+            // Parse full UTC timestamp from directory name: session_YYYYMMDD_HHMMSS_sessionid
+            // Using the time component avoids misclassifying sessions created after UTC midnight
+            // but before local midnight (e.g. a 5pm PST session has a UTC date of the next day)
+            let parts = name.split(separator: "_", maxSplits: 3)
+            guard parts.count >= 3 else { continue }
+            guard let sessionDate = parseSessionTimestamp(datePart: String(parts[1]), timePart: String(parts[2])) else {
+                AppLog.probes.debug("VibeSessionLogAnalyzer: skipping dir with unparseable timestamp: \(name)")
                 continue
             }
 
-            let metadataURL = entry.appendingPathComponent("metadata.json")
+            let metadataURL = entry.appendingPathComponent("meta.json")
             guard fileManager.fileExists(atPath: metadataURL.path) else { continue }
 
             guard let data = try? Data(contentsOf: metadataURL) else { continue }
@@ -96,39 +96,22 @@ public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
                 continue
             }
 
-            let workingTime = computeWorkingTime(
-                startTime: metadata.startTime,
-                endTime: metadata.endTime
-            )
-
             sessions.append(ParsedSession(
                 date: sessionDate,
                 promptTokens: metadata.stats.sessionPromptTokens,
-                completionTokens: metadata.stats.sessionCompletionTokens,
-                workingTime: workingTime
+                completionTokens: metadata.stats.sessionCompletionTokens
             ))
         }
 
         return sessions
     }
 
-    private func parseSessionDate(_ dateString: String) -> Date? {
+    private func parseSessionTimestamp(datePart: String, timePart: String) -> Date? {
+        guard datePart.count == 8, timePart.count == 6 else { return nil }
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd"
-        formatter.timeZone = calendar.timeZone
-        return formatter.date(from: dateString)
-    }
-
-    private func computeWorkingTime(startTime: String?, endTime: String?) -> TimeInterval {
-        let isoFormatter = ISO8601DateFormatter()
-        guard
-            let startStr = startTime,
-            let endStr = endTime,
-            let start = isoFormatter.date(from: startStr),
-            let end = isoFormatter.date(from: endStr),
-            end > start
-        else { return 0 }
-        return end.timeIntervalSince(start)
+        formatter.dateFormat = "yyyyMMddHHmmss"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.date(from: "\(datePart)\(timePart)")
     }
 
     private func aggregate(sessions: [ParsedSession], date: Date) -> DailyUsageStat {
@@ -136,21 +119,19 @@ public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
 
         var totalCost: Decimal = 0
         var totalTokens = 0
-        var totalWorkingTime: TimeInterval = 0
 
         for session in sessions {
             let promptCost = Decimal(session.promptTokens) * Self.inputPricePerMToken / 1_000_000
             let completionCost = Decimal(session.completionTokens) * Self.outputPricePerMToken / 1_000_000
             totalCost += promptCost + completionCost
             totalTokens += session.promptTokens + session.completionTokens
-            totalWorkingTime += session.workingTime
         }
 
         return DailyUsageStat(
             date: date,
             totalCost: totalCost,
             totalTokens: totalTokens,
-            workingTime: totalWorkingTime,
+            workingTime: 0,
             sessionCount: sessions.count
         )
     }
@@ -160,8 +141,6 @@ public struct VibeSessionLogAnalyzer: DailyUsageAnalyzing, Sendable {
 
 private struct VibeSessionMetadata: Decodable {
     let stats: VibeSessionStats
-    let startTime: String?
-    let endTime: String?
 }
 
 private struct VibeSessionStats: Decodable {

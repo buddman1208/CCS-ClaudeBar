@@ -355,7 +355,7 @@ extension MiniMaxProvider: ProviderVisualIdentity {
 // MARK: - MistralProvider Visual Identity
 
 extension MistralProvider: ProviderVisualIdentity {
-    public var symbolIcon: String { "cpu.fill" }
+    public var symbolIcon: String { "cat.fill" }
 
     public var iconAssetName: String { "MistralIcon" }
 
@@ -609,7 +609,7 @@ enum ProviderVisualIdentityLookup {
         case "kiro": return "wand.and.stars.inverse"
         case "minimax": return "waveform"
         case "cursor": return "cursorarrow.rays"
-        case "mistral": return "cpu.fill"
+        case "mistral": return "cat.fill"
         default: return "questionmark.circle.fill"
         }
     }
