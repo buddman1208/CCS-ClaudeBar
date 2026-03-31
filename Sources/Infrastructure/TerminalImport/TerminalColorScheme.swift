@@ -1,6 +1,10 @@
-// Sources/Infrastructure/TerminalImport/TerminalColorScheme.swift
 import Foundation
 
+/// Format-agnostic representation of a terminal color scheme.
+///
+/// Holds 16 ANSI colors plus UI colors (background, foreground, cursor, selection).
+/// `Codable` for JSON persistence in `~/.claudebar/themes/`.
+/// Decoupled from SwiftUI to keep it in the Infrastructure layer.
 public struct TerminalColorScheme: Codable, Sendable, Equatable {
     public let name: String
     public let background: RGBColor
@@ -11,6 +15,7 @@ public struct TerminalColorScheme: Codable, Sendable, Equatable {
     public let selectionText: RGBColor?
     public let ansiColors: [RGBColor]
 
+    /// Whether this scheme has exactly 16 ANSI colors (required for theme generation).
     public var isValid: Bool {
         ansiColors.count == 16
     }
@@ -35,7 +40,9 @@ public struct TerminalColorScheme: Codable, Sendable, Equatable {
         self.ansiColors = ansiColors
     }
 
-    // ANSI color semantic accessors
+    // ANSI color semantic accessors (indices 0-15)
+
+    /// ANSI 0: Black
     public var black: RGBColor { ansiColors[0] }
     public var red: RGBColor { ansiColors[1] }
     public var green: RGBColor { ansiColors[2] }
@@ -53,12 +60,16 @@ public struct TerminalColorScheme: Codable, Sendable, Equatable {
     public var brightCyan: RGBColor { ansiColors[14] }
     public var brightWhite: RGBColor { ansiColors[15] }
 
+    /// Whether this scheme has a dark background (luminance < 0.5).
     public var isDark: Bool {
         background.luminance < 0.5
     }
 }
 
+// MARK: - RGBColor
+
 extension TerminalColorScheme {
+    /// A color represented as red, green, blue, and alpha components (0.0–1.0).
     public struct RGBColor: Codable, Sendable, Equatable {
         public let red: Double
         public let green: Double
@@ -72,10 +83,12 @@ extension TerminalColorScheme {
             self.alpha = alpha
         }
 
+        /// Relative luminance per ITU-R BT.709.
         public var luminance: Double {
             0.2126 * red + 0.7152 * green + 0.0722 * blue
         }
 
+        /// Returns a new color lightened by the given fraction (0.0–1.0).
         public func lightened(by amount: Double) -> RGBColor {
             RGBColor(
                 red: min(1.0, red + (1.0 - red) * amount),
@@ -85,6 +98,7 @@ extension TerminalColorScheme {
             )
         }
 
+        /// Returns a new color darkened by the given fraction (0.0–1.0).
         public func darkened(by amount: Double) -> RGBColor {
             RGBColor(
                 red: max(0.0, red * (1.0 - amount)),
@@ -94,6 +108,7 @@ extension TerminalColorScheme {
             )
         }
 
+        /// Returns a new color with the given alpha value.
         public func withAlpha(_ alpha: Double) -> RGBColor {
             RGBColor(red: red, green: green, blue: blue, alpha: alpha)
         }

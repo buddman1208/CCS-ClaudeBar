@@ -1,6 +1,9 @@
-// Sources/Infrastructure/TerminalImport/TerminalThemeGenerator.swift
 import Foundation
 
+/// Pre-computed theme property values generated from a ``TerminalColorScheme``.
+///
+/// Contains all values needed to build an ``ImportedTerminalTheme`` in the App layer.
+/// Uses ``TerminalColorScheme/RGBColor`` instead of SwiftUI `Color` to stay in Infrastructure.
 public struct GeneratedThemeProperties: Sendable {
     public let id: String
     public let displayName: String
@@ -27,8 +30,20 @@ public struct GeneratedThemeProperties: Sendable {
     public let progressTrack: TerminalColorScheme.RGBColor
 }
 
+/// Maps a ``TerminalColorScheme`` to ``GeneratedThemeProperties``.
+///
+/// The mapping uses ANSI color semantics:
+/// - Red (ANSI 1) → `statusCritical`
+/// - Green (ANSI 2) → `statusHealthy`
+/// - Yellow (ANSI 3) → `statusWarning`
+/// - Blue (ANSI 4) → `accentSecondary`
+/// - Cyan (ANSI 6) → `accentPrimary`
+/// - Background → `backgroundGradient`, derived card/glass colors
+/// - Foreground/Bold → `textPrimary`, `textSecondary`, `textTertiary`
 public struct TerminalThemeGenerator {
 
+    /// Generate theme properties from a terminal color scheme.
+    /// - Precondition: `scheme.isValid` must be true (exactly 16 ANSI colors).
     public static func generate(from scheme: TerminalColorScheme) -> GeneratedThemeProperties {
         precondition(scheme.isValid, "TerminalColorScheme must have exactly 16 ANSI colors")
         let sanitizedId = scheme.name

@@ -102,7 +102,10 @@ public final class ThemeRegistry {
         }
     }
 
-    /// Import a .itermcolors file, persist it, and register the theme.
+    /// Import a `.itermcolors` file, persist the color scheme, and register the generated theme.
+    /// - Parameter url: Path to the `.itermcolors` file.
+    /// - Returns: The generated ``AppThemeProvider`` theme.
+    /// - Throws: ``ITermColorsParserError`` if the file cannot be parsed.
     @discardableResult
     public func importItermcolors(from url: URL) throws -> any AppThemeProvider {
         let scheme = try ITermColorsParser.parse(from: url)
@@ -113,7 +116,8 @@ public final class ThemeRegistry {
         return theme
     }
 
-    /// Remove an imported theme by its ID.
+    /// Remove an imported theme by its ID. Built-in themes are not affected.
+    /// - Parameter id: The theme ID (e.g., `"imported-dracula"`).
     public func removeImportedTheme(id: String) {
         guard let theme = themes[id], theme is ImportedTerminalTheme else { return }
         let displayName = theme.displayName

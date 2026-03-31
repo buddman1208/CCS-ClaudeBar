@@ -2,6 +2,11 @@ import SwiftUI
 import Infrastructure
 import UniformTypeIdentifiers
 
+/// Import button for terminal color scheme files.
+///
+/// Currently supports `.itermcolors` (iTerm2 export format, compatible with 450+ schemes
+/// from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes)).
+/// The architecture supports adding more formats via new parsers.
 struct ThemeImportButton: View {
     @Environment(\.appTheme) private var theme
     @State private var isImporting = false
@@ -16,7 +21,7 @@ struct ThemeImportButton: View {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 10, weight: .semibold))
-                    Text("Import .itermcolors")
+                    Text("Import Theme")
                         .font(theme.font(size: 11, weight: .medium))
                 }
                 .foregroundStyle(theme.accentPrimary)

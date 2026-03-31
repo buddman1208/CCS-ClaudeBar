@@ -5,6 +5,7 @@ import Domain
 // MARK: - RGBColor → SwiftUI Color
 
 public extension TerminalColorScheme.RGBColor {
+    /// Convert to SwiftUI `Color`.
     var color: Color {
         Color(red: red, green: green, blue: blue).opacity(alpha)
     }
@@ -12,11 +13,15 @@ public extension TerminalColorScheme.RGBColor {
 
 // MARK: - ImportedTerminalTheme
 
-/// A dynamic theme generated from an imported terminal color scheme.
+/// An ``AppThemeProvider`` implementation generated from an imported terminal color scheme.
+///
+/// Created by ``TerminalThemeGenerator`` and backed by pre-computed ``GeneratedThemeProperties``.
+/// All SwiftUI colors are derived from the canonical ``TerminalColorScheme/RGBColor`` values.
 public struct ImportedTerminalTheme: AppThemeProvider {
     private let props: GeneratedThemeProperties
     private let scheme: TerminalColorScheme
 
+    /// Create a theme from generated properties and the original color scheme.
     public init(props: GeneratedThemeProperties, scheme: TerminalColorScheme) {
         self.props = props
         self.scheme = scheme
@@ -32,6 +37,7 @@ public struct ImportedTerminalTheme: AppThemeProvider {
 
     // MARK: - Color Scheme Preference
 
+    /// Whether this imported theme prefers a dark color scheme (derived from background luminance).
     public var prefersDarkColorScheme: Bool { props.isDark }
 
     // MARK: - Background

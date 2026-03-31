@@ -1,18 +1,32 @@
 import Foundation
 
+/// Errors thrown when parsing `.itermcolors` files.
 public enum ITermColorsParserError: Error, Equatable {
+    /// The data is not a valid property list.
     case invalidPlist
+    /// A required color key is missing from the plist.
     case missingColor(String)
 }
 
+/// Parses `.itermcolors` XML plist files into ``TerminalColorScheme``.
+///
+/// The `.itermcolors` format is an XML property list where each color key maps to a dictionary
+/// with `Red Component`, `Green Component`, `Blue Component` (floats 0.0–1.0), and optional
+/// `Alpha Component` and `Color Space`. This is the standard export format from iTerm2
+/// (Preferences > Profiles > Colors > Color Presets > Export).
+///
+/// Uses Foundation's `PropertyListSerialization` — no external dependencies required.
 public struct ITermColorsParser {
 
+    /// Parse a `.itermcolors` file at the given URL. The theme name is derived from the filename.
     public static func parse(from url: URL) throws -> TerminalColorScheme {
         let data = try Data(contentsOf: url)
         let name = url.deletingPathExtension().lastPathComponent
         return try parse(from: data, name: name)
     }
 
+    /// Parse `.itermcolors` data with an explicit theme name.
+    /// - Throws: ``ITermColorsParserError`` if required colors are missing or data is not a valid plist.
     public static func parse(from data: Data, name: String) throws -> TerminalColorScheme {
         guard let plist = try PropertyListSerialization.propertyList(
             from: data, options: [], format: nil
