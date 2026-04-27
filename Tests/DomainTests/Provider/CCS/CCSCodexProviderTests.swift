@@ -3,6 +3,7 @@ import Foundation
 @testable import Domain
 
 @Suite("CCSCodexProvider Tests")
+@MainActor
 struct CCSCodexProviderTests {
 
     private final class InMemorySettings: ProviderSettingsRepository, @unchecked Sendable {
@@ -15,7 +16,7 @@ struct CCSCodexProviderTests {
         func setCustomCardURL(_ url: String?, forProvider id: String) { customURLs[id] = url }
     }
 
-    private func makeAccount(_ email: String, isDefault: Bool = false) -> CCSAccount {
+    private nonisolated func makeAccount(_ email: String, isDefault: Bool = false) -> CCSAccount {
         CCSAccount(
             provider: .codex,
             email: email,
@@ -25,7 +26,7 @@ struct CCSCodexProviderTests {
         )
     }
 
-    private func makeToken(_ email: String) -> CCSToken {
+    private nonisolated func makeToken(_ email: String) -> CCSToken {
         CCSToken(
             kind: .codex,
             accessToken: "jwt-\(email)",
@@ -34,7 +35,7 @@ struct CCSCodexProviderTests {
         )
     }
 
-    private func snapshot(for email: String, percent: Double) -> UsageSnapshot {
+    private nonisolated func snapshot(for email: String, percent: Double) -> UsageSnapshot {
         UsageSnapshot(
             providerId: "ccs-codex",
             quotas: [UsageQuota(

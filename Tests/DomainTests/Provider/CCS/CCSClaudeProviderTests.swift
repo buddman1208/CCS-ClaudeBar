@@ -3,6 +3,7 @@ import Foundation
 @testable import Domain
 
 @Suite("CCSClaudeProvider Tests")
+@MainActor
 struct CCSClaudeProviderTests {
 
     // MARK: - In-memory settings repo (state verification, not method calls)
@@ -19,7 +20,7 @@ struct CCSClaudeProviderTests {
 
     // MARK: - Helpers
 
-    private func makeAccount(_ email: String, paused: Bool = false, isDefault: Bool = false) -> CCSAccount {
+    private nonisolated func makeAccount(_ email: String, paused: Bool = false, isDefault: Bool = false) -> CCSAccount {
         CCSAccount(
             provider: .claude,
             email: email,
@@ -30,7 +31,7 @@ struct CCSClaudeProviderTests {
         )
     }
 
-    private func makeToken(_ email: String) -> CCSToken {
+    private nonisolated func makeToken(_ email: String) -> CCSToken {
         CCSToken(
             kind: .claude,
             accessToken: "token-\(email)",
@@ -42,7 +43,7 @@ struct CCSClaudeProviderTests {
         )
     }
 
-    private func snapshot(for email: String, percentRemaining: Double) -> UsageSnapshot {
+    private nonisolated func snapshot(for email: String, percentRemaining: Double) -> UsageSnapshot {
         UsageSnapshot(
             providerId: "ccs-claude",
             quotas: [UsageQuota(

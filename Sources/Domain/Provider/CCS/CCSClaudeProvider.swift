@@ -10,8 +10,9 @@ import Observation
 /// We intentionally re-discover accounts on every refresh: CCS users add/remove
 /// accounts via the `ccs auth` CLI while ClaudeBar is running, and we want
 /// those changes to surface without a restart.
+@MainActor
 @Observable
-public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable {
+public final class CCSClaudeProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String = "ccs-claude"

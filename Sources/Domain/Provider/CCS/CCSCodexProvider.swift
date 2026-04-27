@@ -5,8 +5,9 @@ import Observation
 ///
 /// Mirrors `CCSClaudeProvider`. Each account fetches from the ChatGPT backend
 /// (`/backend-api/wham/usage`) using the JWT minted by CCS.
+@MainActor
 @Observable
-public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
+public final class CCSCodexProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String = "ccs-codex"

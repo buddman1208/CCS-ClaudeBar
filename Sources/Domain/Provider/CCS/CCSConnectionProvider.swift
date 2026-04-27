@@ -10,8 +10,9 @@ import Observation
 ///
 /// Throttling and per-account cooldown logic mirror `CCSClaudeProvider` so
 /// behavior stays consistent across all CCS providers.
+@MainActor
 @Observable
-public final class CCSConnectionProvider: MultiAccountProvider, @unchecked Sendable {
+public final class CCSConnectionProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String
