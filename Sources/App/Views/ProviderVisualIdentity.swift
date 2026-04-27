@@ -536,6 +536,22 @@ enum ProviderVisualIdentityLookup {
             return scheme == .dark
                 ? BaseTheme.tealBright
                 : Color(red: 0.18, green: 0.72, blue: 0.68)
+        case "ccs-gemini":
+            return scheme == .dark
+                ? Color(red: 0.45, green: 0.65, blue: 1.0)
+                : Color(red: 0.20, green: 0.45, blue: 0.95)
+        case "ccs-antigravity":
+            return scheme == .dark
+                ? Color(red: 0.85, green: 0.45, blue: 1.0)
+                : Color(red: 0.55, green: 0.20, blue: 0.85)
+        case "ccs-kimi":
+            return scheme == .dark
+                ? Color(red: 1.00, green: 0.75, blue: 0.30)
+                : Color(red: 0.85, green: 0.55, blue: 0.10)
+        case "ccs-vertex":
+            return scheme == .dark
+                ? Color(red: 0.40, green: 0.85, blue: 0.55)
+                : Color(red: 0.20, green: 0.60, blue: 0.35)
         default:
             return BaseTheme.purpleVibrant
         }

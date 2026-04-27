@@ -50,16 +50,21 @@ struct ClaudeBarApp: App {
         // Create all providers with their probes (rich domain models)
         // Each provider manages its own isEnabled state (persisted via ProviderSettingsRepository)
         // Each probe checks isAvailable() for credentials/prerequisites
+        // CCS-managed providers (multi-account via ~/.ccs/cliproxy).
+        // CCS supports six provider kinds; we register all six so users with
+        // any combination of accounts authenticated in CCS can see them. The
+        // four "connection-only" kinds (gemini, antigravity, kimi, vertex)
+        // surface only "connected + last used" because their upstreams don't
+        // expose a stable usage endpoint we can call. Providers without any
+        // accounts are still registered (so users see them in Settings) but
+        // default to disabled.
+        let ccsLoader = CCSAccountsLoader()
         let repository = AIProviders(providers: [
-            // CCS-managed providers (multi-account via ~/.ccs/cliproxy)
-            // All other providers (Claude/Codex direct, Gemini, Copilot, ...) are
-            // intentionally unregistered: this build is the CCS-only "CCS ClaudeBar" variant.
             {
-                let loader = CCSAccountsLoader()
                 let probe = CCSClaudeUsageProbe()
                 return CCSClaudeProvider(
-                    accountSource: { loader.loadAccounts(provider: .claude) },
-                    tokenSource: { loader.loadToken(for: $0) },
+                    accountSource: { ccsLoader.loadAccounts(provider: .claude) },
+                    tokenSource: { ccsLoader.loadToken(for: $0) },
                     fetchUsage: { token, account in
                         try await probe.probe(token: token, account: account)
                     },
@@ -67,17 +72,48 @@ struct ClaudeBarApp: App {
                 )
             }(),
             {
-                let loader = CCSAccountsLoader()
                 let probe = CCSCodexUsageProbe()
                 return CCSCodexProvider(
-                    accountSource: { loader.loadAccounts(provider: .codex) },
-                    tokenSource: { loader.loadToken(for: $0) },
+                    accountSource: { ccsLoader.loadAccounts(provider: .codex) },
+                    tokenSource: { ccsLoader.loadToken(for: $0) },
                     fetchUsage: { token, account in
                         try await probe.probe(token: token, account: account)
                     },
                     settingsRepository: settingsRepository
                 )
             }(),
+            CCSConnectionProvider(
+                providerKind: .gemini,
+                id: "ccs-gemini",
+                name: "CCS Gemini",
+                accountSource: { ccsLoader.loadAccounts(provider: .gemini) },
+                tokenSource: { ccsLoader.loadToken(for: $0) },
+                settingsRepository: settingsRepository
+            ),
+            CCSConnectionProvider(
+                providerKind: .antigravity,
+                id: "ccs-antigravity",
+                name: "CCS Antigravity",
+                accountSource: { ccsLoader.loadAccounts(provider: .antigravity) },
+                tokenSource: { ccsLoader.loadToken(for: $0) },
+                settingsRepository: settingsRepository
+            ),
+            CCSConnectionProvider(
+                providerKind: .kimi,
+                id: "ccs-kimi",
+                name: "CCS Kimi",
+                accountSource: { ccsLoader.loadAccounts(provider: .kimi) },
+                tokenSource: { ccsLoader.loadToken(for: $0) },
+                settingsRepository: settingsRepository
+            ),
+            CCSConnectionProvider(
+                providerKind: .vertex,
+                id: "ccs-vertex",
+                name: "CCS Vertex",
+                accountSource: { ccsLoader.loadAccounts(provider: .vertex) },
+                tokenSource: { ccsLoader.loadToken(for: $0) },
+                settingsRepository: settingsRepository
+            ),
         ])
         AppLog.providers.info("Created \(repository.all.count) providers")
 
