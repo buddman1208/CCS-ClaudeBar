@@ -98,6 +98,31 @@ struct ClaudeBarApp: App {
                 probe: MistralUsageProbe(),
                 settingsRepository: settingsRepository
             ),
+            // CCS-managed providers (multi-account via ~/.ccs/cliproxy)
+            {
+                let loader = CCSAccountsLoader()
+                let probe = CCSClaudeUsageProbe()
+                return CCSClaudeProvider(
+                    accountSource: { loader.loadAccounts(provider: .claude) },
+                    tokenSource: { loader.loadToken(for: $0) },
+                    fetchUsage: { token, account in
+                        try await probe.probe(token: token, account: account)
+                    },
+                    settingsRepository: settingsRepository
+                )
+            }(),
+            {
+                let loader = CCSAccountsLoader()
+                let probe = CCSCodexUsageProbe()
+                return CCSCodexProvider(
+                    accountSource: { loader.loadAccounts(provider: .codex) },
+                    tokenSource: { loader.loadToken(for: $0) },
+                    fetchUsage: { token, account in
+                        try await probe.probe(token: token, account: account)
+                    },
+                    settingsRepository: settingsRepository
+                )
+            }(),
         ])
         AppLog.providers.info("Created \(repository.all.count) providers")
 
