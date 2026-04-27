@@ -13,3 +13,4 @@ xcuserdata/
 # Build artifacts
 build/
 .serena/
+.omx/
