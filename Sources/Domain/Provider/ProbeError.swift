@@ -33,6 +33,12 @@ public enum ProbeError: Error, Sendable, LocalizedError {
     /// Usage data requires a subscription plan (API billing accounts don't support /usage)
     case subscriptionRequired
 
+    /// Upstream returned HTTP 429. `retryAfter` is the cooldown window the
+    /// caller MUST honour before probing this account again. When the upstream
+    /// did not provide `Retry-After`, the probe SHOULD still pass a sensible
+    /// fallback (typically 60s).
+    case rateLimited(retryAfter: TimeInterval)
+
     // MARK: - LocalizedError
 
     public var errorDescription: String? {
@@ -60,6 +66,9 @@ public enum ProbeError: Error, Sendable, LocalizedError {
             return reason
         case .subscriptionRequired:
             return "Subscription required for usage data"
+        case .rateLimited(let retryAfter):
+            let seconds = Int(retryAfter.rounded())
+            return "Rate limited — retry in \(seconds)s"
         }
     }
 }
@@ -89,6 +98,8 @@ extension ProbeError: Equatable {
             return a == b
         case (.subscriptionRequired, .subscriptionRequired):
             return true
+        case (.rateLimited(let a), .rateLimited(let b)):
+            return a == b
         default:
             return false
         }
