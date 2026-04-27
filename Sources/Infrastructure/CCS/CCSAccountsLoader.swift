@@ -67,12 +67,17 @@ public struct CCSAccountsLoader: Sendable {
 
     /// Loads the token file for a given account. Returns `nil` if the file is
     /// missing or unparseable; callers should surface `authenticationRequired`.
+    ///
+    /// Paused accounts have their token relocated by CCS to
+    /// `~/.ccs/cliproxy/auth-paused/`. We try `auth/` first and fall back to
+    /// `auth-paused/` so paused accounts still surface their last-known usage.
     public func loadToken(for account: CCSAccount) -> CCSToken? {
         guard !account.tokenFile.isEmpty else { return nil }
-        let url = cliproxyURL
-            .appendingPathComponent("auth", isDirectory: true)
-            .appendingPathComponent(account.tokenFile)
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        let candidates = [
+            cliproxyURL.appendingPathComponent("auth", isDirectory: true).appendingPathComponent(account.tokenFile),
+            cliproxyURL.appendingPathComponent("auth-paused", isDirectory: true).appendingPathComponent(account.tokenFile),
+        ]
+        guard let data = candidates.lazy.compactMap({ try? Data(contentsOf: $0) }).first else { return nil }
         guard let raw = try? JSONDecoder().decode(RawToken.self, from: data) else { return nil }
 
         let kind: CCSToken.Kind
