@@ -434,12 +434,61 @@ struct MenuContentView: View {
         VStack(spacing: 8) {
             providerSectionHeader(provider: provider)
 
-            if let snapshot = provider.snapshot {
+            if let multi = provider as? (any MultiAccountProvider), multi.accounts.count > 1 {
+                multiAccountBody(provider: provider, multi: multi)
+            } else if let snapshot = provider.snapshot {
                 statsGrid(snapshot: snapshot)
             } else if provider.isSyncing {
                 LoadingSpinnerView()
             } else {
                 compactErrorState(provider: provider)
+            }
+        }
+    }
+
+    /// Renders one row per account for multi-account providers (e.g. CCS).
+    /// Each row shows the account label, status badge, and either a stats grid
+    /// or an error/loading placeholder — mirroring the single-account layout.
+    @ViewBuilder
+    private func multiAccountBody(provider: any AIProvider, multi: any MultiAccountProvider) -> some View {
+        VStack(spacing: 10) {
+            ForEach(multi.accounts, id: \.id) { account in
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(account.displayName)
+                            .font(.system(size: 11, weight: .medium, design: theme.fontDesign))
+                            .foregroundStyle(theme.textSecondary)
+                            .lineLimit(1)
+                        Spacer()
+                        if let snapshot = multi.accountSnapshots[account.accountId] {
+                            Text(snapshot.overallStatus.badgeText)
+                                .badge(theme.statusColor(for: snapshot.overallStatus))
+                        } else if provider.isSyncing {
+                            Text("Syncing...")
+                                .badge(theme.statusColor(for: .healthy))
+                        } else {
+                            Text("Auth")
+                                .badge(theme.statusColor(for: .warning))
+                        }
+                    }
+                    .padding(.horizontal, 4)
+
+                    if let snapshot = multi.accountSnapshots[account.accountId] {
+                        statsGrid(snapshot: snapshot)
+                    } else if !provider.isSyncing {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(theme.statusWarning)
+                            Text("Re-authenticate via `ccs auth login`")
+                                .font(.system(size: 10, design: theme.fontDesign))
+                                .foregroundStyle(theme.textTertiary)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
             }
         }
     }

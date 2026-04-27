@@ -380,6 +380,58 @@ extension MistralProvider: ProviderVisualIdentity {
     }
 }
 
+// MARK: - CCSClaudeProvider Visual Identity
+
+extension CCSClaudeProvider: ProviderVisualIdentity {
+    public var symbolIcon: String { "person.2.crop.square.stack.fill" }
+
+    public var iconAssetName: String { "ClaudeIcon" }
+
+    public func themeColor(for scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? BaseTheme.coralAccent
+            : Color(red: 0.95, green: 0.48, blue: 0.38)
+    }
+
+    public func themeGradient(for scheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                themeColor(for: scheme),
+                scheme == .dark ? BaseTheme.pinkHot : Color(red: 0.92, green: 0.45, blue: 0.72)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+// MARK: - CCSCodexProvider Visual Identity
+
+extension CCSCodexProvider: ProviderVisualIdentity {
+    public var symbolIcon: String { "person.2.crop.square.stack.fill" }
+
+    public var iconAssetName: String { "CodexIcon" }
+
+    public func themeColor(for scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? BaseTheme.tealBright
+            : Color(red: 0.18, green: 0.72, blue: 0.68)
+    }
+
+    public func themeGradient(for scheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                themeColor(for: scheme),
+                scheme == .dark
+                    ? Color(red: 0.25, green: 0.65, blue: 0.85)
+                    : Color(red: 0.12, green: 0.52, blue: 0.72)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
 // MARK: - AIProvider Visual Identity Helper
 
 /// Extension to access visual identity from any AIProvider.
@@ -476,6 +528,14 @@ enum ProviderVisualIdentityLookup {
             return scheme == .dark
                 ? Color(red: 1.0, green: 0.55, blue: 0.0)
                 : Color(red: 0.90, green: 0.45, blue: 0.0)
+        case "ccs-claude":
+            return scheme == .dark
+                ? BaseTheme.coralAccent
+                : Color(red: 0.95, green: 0.48, blue: 0.38)
+        case "ccs-codex":
+            return scheme == .dark
+                ? BaseTheme.tealBright
+                : Color(red: 0.18, green: 0.72, blue: 0.68)
         default:
             return BaseTheme.purpleVibrant
         }
@@ -539,6 +599,14 @@ enum ProviderVisualIdentityLookup {
             secondaryColor = scheme == .dark
                 ? Color(red: 0.85, green: 0.35, blue: 0.10)
                 : Color(red: 0.75, green: 0.25, blue: 0.05)
+        case "ccs-claude":
+            secondaryColor = scheme == .dark
+                ? BaseTheme.pinkHot
+                : Color(red: 0.92, green: 0.45, blue: 0.72)
+        case "ccs-codex":
+            secondaryColor = scheme == .dark
+                ? Color(red: 0.25, green: 0.65, blue: 0.85)
+                : Color(red: 0.12, green: 0.52, blue: 0.72)
         default:
             return LinearGradient(
                 colors: [BaseTheme.coralAccent, BaseTheme.pinkHot],
@@ -570,6 +638,8 @@ enum ProviderVisualIdentityLookup {
         case "minimax": return "MiniMaxIcon"
         case "cursor": return "CursorIcon"
         case "mistral": return "MistralIcon"
+        case "ccs-claude": return "ClaudeIcon"
+        case "ccs-codex": return "CodexIcon"
         default: return "QuestionIcon"
         }
     }
@@ -590,6 +660,8 @@ enum ProviderVisualIdentityLookup {
         case "minimax": return "MiniMax"
         case "cursor": return "Cursor"
         case "mistral": return "Mistral"
+        case "ccs-claude": return "CCS Claude"
+        case "ccs-codex": return "CCS Codex"
         default: return providerId.capitalized
         }
     }
@@ -610,6 +682,8 @@ enum ProviderVisualIdentityLookup {
         case "minimax": return "waveform"
         case "cursor": return "cursorarrow.rays"
         case "mistral": return "cat.fill"
+        case "ccs-claude": return "person.2.crop.square.stack.fill"
+        case "ccs-codex": return "person.2.crop.square.stack.fill"
         default: return "questionmark.circle.fill"
         }
     }
