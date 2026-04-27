@@ -10,9 +10,8 @@ import Observation
 ///
 /// Throttling and per-account cooldown logic mirror `CCSClaudeProvider` so
 /// behavior stays consistent across all CCS providers.
-@MainActor
 @Observable
-public final class CCSConnectionProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
+public final class CCSConnectionProvider: MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String
@@ -117,7 +116,7 @@ public final class CCSConnectionProvider: @preconcurrency MultiAccountProvider, 
 
     @discardableResult
     public func refreshAccount(_ accountId: String) async throws -> UsageSnapshot {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard let providerAccount = accounts.first(where: { $0.accountId == accountId }),
               let ccsAccount = ccsAccountsByEmail[accountId] else {
             throw ProbeError.noData
@@ -126,38 +125,48 @@ public final class CCSConnectionProvider: @preconcurrency MultiAccountProvider, 
             return cached
         }
         let result = makeSnapshot(for: ccsAccount)
-        accountSnapshots[accountId] = result
-        accountErrors.removeValue(forKey: accountId)
-        nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
-        if providerAccount.accountId == activeAccount.accountId {
-            snapshot = result
-            lastError = nil
+        await MainActor.run {
+            accountSnapshots[accountId] = result
+            accountErrors.removeValue(forKey: accountId)
+            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+            if providerAccount.accountId == activeAccount.accountId {
+                snapshot = result
+                lastError = nil
+            }
         }
         return result
     }
 
     public func refreshAllAccounts() async {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard !accounts.isEmpty else {
-            snapshot = nil
-            lastError = nil
+            await MainActor.run {
+                snapshot = nil
+                lastError = nil
+            }
             return
         }
-        isSyncing = true
-        defer { isSyncing = false }
+        await MainActor.run { isSyncing = true }
+        defer { Task { @MainActor in self.isSyncing = false } }
 
         let now = Date()
-        for providerAccount in accounts {
+        // makeSnapshot is a pure read of injected closures + immutable token data;
+        // safe to call before MainActor.run.
+        let updates: [(String, UsageSnapshot)] = accounts.compactMap { providerAccount in
             guard isEligible(providerAccount.accountId, now: now),
-                  let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { continue }
-            let result = makeSnapshot(for: ccsAccount)
-            accountSnapshots[providerAccount.accountId] = result
-            accountErrors.removeValue(forKey: providerAccount.accountId)
-            nextEligibleProbeAt[providerAccount.accountId] = now.addingTimeInterval(Self.minRefreshInterval)
+                  let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { return nil }
+            return (providerAccount.accountId, makeSnapshot(for: ccsAccount))
         }
 
-        snapshot = accountSnapshots[activeAccount.accountId]
-        lastError = accountErrors[activeAccount.accountId]
+        await MainActor.run {
+            for (accountId, result) in updates {
+                accountSnapshots[accountId] = result
+                accountErrors.removeValue(forKey: accountId)
+                nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
+            }
+            snapshot = accountSnapshots[activeAccount.accountId]
+            lastError = accountErrors[activeAccount.accountId]
+        }
     }
 
     // MARK: - Throttle helpers

@@ -382,7 +382,7 @@ extension MistralProvider: ProviderVisualIdentity {
 
 // MARK: - CCSClaudeProvider Visual Identity
 
-extension CCSClaudeProvider: @preconcurrency ProviderVisualIdentity {
+extension CCSClaudeProvider: ProviderVisualIdentity {
     public var symbolIcon: String { "person.2.crop.square.stack.fill" }
 
     public var iconAssetName: String { "ClaudeIcon" }
@@ -407,7 +407,7 @@ extension CCSClaudeProvider: @preconcurrency ProviderVisualIdentity {
 
 // MARK: - CCSCodexProvider Visual Identity
 
-extension CCSCodexProvider: @preconcurrency ProviderVisualIdentity {
+extension CCSCodexProvider: ProviderVisualIdentity {
     public var symbolIcon: String { "person.2.crop.square.stack.fill" }
 
     public var iconAssetName: String { "CodexIcon" }

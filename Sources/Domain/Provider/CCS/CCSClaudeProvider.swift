@@ -10,9 +10,8 @@ import Observation
 /// We intentionally re-discover accounts on every refresh: CCS users add/remove
 /// accounts via the `ccs auth` CLI while ClaudeBar is running, and we want
 /// those changes to surface without a restart.
-@MainActor
 @Observable
-public final class CCSClaudeProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
+public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String = "ccs-claude"
@@ -135,14 +134,11 @@ public final class CCSClaudeProvider: @preconcurrency MultiAccountProvider, @unc
 
     @discardableResult
     public func refreshAccount(_ accountId: String) async throws -> UsageSnapshot {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard let providerAccount = accounts.first(where: { $0.accountId == accountId }),
               let ccsAccount = ccsAccountsByEmail[accountId] else {
             throw ProbeError.noData
         }
-        // Throttle: if the account is still cooling down, return the cached
-        // snapshot if we have one (silent), or surface noData (caller will see
-        // the existing UI state remain unchanged).
         if !isEligible(accountId) {
             if let cached = accountSnapshots[accountId] {
                 return cached
@@ -151,52 +147,56 @@ public final class CCSClaudeProvider: @preconcurrency MultiAccountProvider, @unc
         }
         guard let token = tokenSource(ccsAccount) else {
             let error = ProbeError.authenticationRequired
-            accountErrors[accountId] = error
+            await MainActor.run { accountErrors[accountId] = error }
             throw error
         }
         do {
             let result = try await fetchUsage(token, ccsAccount)
-            accountSnapshots[accountId] = result
-            accountErrors.removeValue(forKey: accountId)
-            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
-            if providerAccount.accountId == activeAccount.accountId {
-                snapshot = result
-                lastError = nil
+            await MainActor.run {
+                accountSnapshots[accountId] = result
+                accountErrors.removeValue(forKey: accountId)
+                nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = result
+                    lastError = nil
+                }
             }
             return result
         } catch let error as ProbeError {
-            applyErrorCooldown(error, for: accountId)
-            accountErrors[accountId] = error
-            if providerAccount.accountId == activeAccount.accountId {
-                // Preserve last known snapshot on failure so the user sees stale
-                // data + the error badge instead of a blank card.
-                snapshot = accountSnapshots[accountId]
-                lastError = error
+            await MainActor.run {
+                applyErrorCooldown(error, for: accountId)
+                accountErrors[accountId] = error
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = accountSnapshots[accountId]
+                    lastError = error
+                }
             }
             throw error
         } catch {
-            // Unknown errors get the baseline cooldown so we don't immediately
-            // retry an upstream that is probably still broken.
-            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
-            accountErrors[accountId] = error
-            if providerAccount.accountId == activeAccount.accountId {
-                snapshot = accountSnapshots[accountId]
-                lastError = error
+            await MainActor.run {
+                nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+                accountErrors[accountId] = error
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = accountSnapshots[accountId]
+                    lastError = error
+                }
             }
             throw error
         }
     }
 
     public func refreshAllAccounts() async {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard !accounts.isEmpty else {
-            snapshot = nil
-            lastError = nil
+            await MainActor.run {
+                snapshot = nil
+                lastError = nil
+            }
             return
         }
 
-        isSyncing = true
-        defer { isSyncing = false }
+        await MainActor.run { isSyncing = true }
+        defer { Task { @MainActor in self.isSyncing = false } }
 
         // Resolve the work items synchronously so the actor-isolated state
         // never leaks into a Sendable closure. Skip accounts whose cooldown
@@ -242,30 +242,34 @@ public final class CCSClaudeProvider: @preconcurrency MultiAccountProvider, @unc
             return collected
         }
 
-        // Merge results back into the per-account state. Accounts that were
-        // skipped due to throttle keep their previous snapshot/error.
+        // Merge results back into the per-account state. The mutation is
+        // routed through MainActor.run so SwiftUI never observes a
+        // half-written dictionary mid-render — a race that previously crashed
+        // the app with EXC_BAD_ACCESS in Dictionary.subscript.getter.
         let now = Date()
-        for (accountId, result) in results {
-            switch result {
-            case .success(let snapshot):
-                accountSnapshots[accountId] = snapshot
-                accountErrors.removeValue(forKey: accountId)
-                nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
-            case .failure(let error):
-                accountErrors[accountId] = error
-                applyErrorCooldown(error, for: accountId, now: now)
+        await MainActor.run {
+            for (accountId, result) in results {
+                switch result {
+                case .success(let snapshot):
+                    accountSnapshots[accountId] = snapshot
+                    accountErrors.removeValue(forKey: accountId)
+                    nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
+                case .failure(let error):
+                    accountErrors[accountId] = error
+                    applyErrorCooldown(error, for: accountId, now: now)
+                }
             }
-        }
 
-        if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
-            snapshot = activeSnapshot
-            lastError = accountErrors[activeAccount.accountId]
-        } else if let activeError = accountErrors[activeAccount.accountId] {
-            snapshot = nil
-            lastError = activeError
-        } else {
-            snapshot = nil
-            lastError = nil
+            if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
+                snapshot = activeSnapshot
+                lastError = accountErrors[activeAccount.accountId]
+            } else if let activeError = accountErrors[activeAccount.accountId] {
+                snapshot = nil
+                lastError = activeError
+            } else {
+                snapshot = nil
+                lastError = nil
+            }
         }
     }
 

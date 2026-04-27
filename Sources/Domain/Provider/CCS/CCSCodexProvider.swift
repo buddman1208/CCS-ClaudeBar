@@ -5,9 +5,8 @@ import Observation
 ///
 /// Mirrors `CCSClaudeProvider`. Each account fetches from the ChatGPT backend
 /// (`/backend-api/wham/usage`) using the JWT minted by CCS.
-@MainActor
 @Observable
-public final class CCSCodexProvider: @preconcurrency MultiAccountProvider, @unchecked Sendable {
+public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
     // MARK: - Identity
 
     public let id: String = "ccs-codex"
@@ -102,7 +101,7 @@ public final class CCSCodexProvider: @preconcurrency MultiAccountProvider, @unch
 
     @discardableResult
     public func refreshAccount(_ accountId: String) async throws -> UsageSnapshot {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard let providerAccount = accounts.first(where: { $0.accountId == accountId }),
               let ccsAccount = ccsAccountsByEmail[accountId] else {
             throw ProbeError.noData
@@ -115,48 +114,56 @@ public final class CCSCodexProvider: @preconcurrency MultiAccountProvider, @unch
         }
         guard let token = tokenSource(ccsAccount) else {
             let error = ProbeError.authenticationRequired
-            accountErrors[accountId] = error
+            await MainActor.run { accountErrors[accountId] = error }
             throw error
         }
         do {
             let result = try await fetchUsage(token, ccsAccount)
-            accountSnapshots[accountId] = result
-            accountErrors.removeValue(forKey: accountId)
-            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
-            if providerAccount.accountId == activeAccount.accountId {
-                snapshot = result
-                lastError = nil
+            await MainActor.run {
+                accountSnapshots[accountId] = result
+                accountErrors.removeValue(forKey: accountId)
+                nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = result
+                    lastError = nil
+                }
             }
             return result
         } catch let error as ProbeError {
-            applyErrorCooldown(error, for: accountId)
-            accountErrors[accountId] = error
-            if providerAccount.accountId == activeAccount.accountId {
-                snapshot = accountSnapshots[accountId]
-                lastError = error
+            await MainActor.run {
+                applyErrorCooldown(error, for: accountId)
+                accountErrors[accountId] = error
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = accountSnapshots[accountId]
+                    lastError = error
+                }
             }
             throw error
         } catch {
-            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
-            accountErrors[accountId] = error
-            if providerAccount.accountId == activeAccount.accountId {
-                snapshot = accountSnapshots[accountId]
-                lastError = error
+            await MainActor.run {
+                nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+                accountErrors[accountId] = error
+                if providerAccount.accountId == activeAccount.accountId {
+                    snapshot = accountSnapshots[accountId]
+                    lastError = error
+                }
             }
             throw error
         }
     }
 
     public func refreshAllAccounts() async {
-        rebuildAccounts()
+        await MainActor.run { rebuildAccounts() }
         guard !accounts.isEmpty else {
-            snapshot = nil
-            lastError = nil
+            await MainActor.run {
+                snapshot = nil
+                lastError = nil
+            }
             return
         }
 
-        isSyncing = true
-        defer { isSyncing = false }
+        await MainActor.run { isSyncing = true }
+        defer { Task { @MainActor in self.isSyncing = false } }
 
         let work: [(ProviderAccount, CCSAccount)] = accounts.compactMap { providerAccount in
             guard isEligible(providerAccount.accountId),
@@ -194,28 +201,32 @@ public final class CCSCodexProvider: @preconcurrency MultiAccountProvider, @unch
             return collected
         }
 
+        // Mutation routed through MainActor.run to prevent SwiftUI from
+        // observing a half-written dictionary mid-render.
         let now = Date()
-        for (accountId, result) in results {
-            switch result {
-            case .success(let snapshot):
-                accountSnapshots[accountId] = snapshot
-                accountErrors.removeValue(forKey: accountId)
-                nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
-            case .failure(let error):
-                accountErrors[accountId] = error
-                applyErrorCooldown(error, for: accountId, now: now)
+        await MainActor.run {
+            for (accountId, result) in results {
+                switch result {
+                case .success(let snapshot):
+                    accountSnapshots[accountId] = snapshot
+                    accountErrors.removeValue(forKey: accountId)
+                    nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
+                case .failure(let error):
+                    accountErrors[accountId] = error
+                    applyErrorCooldown(error, for: accountId, now: now)
+                }
             }
-        }
 
-        if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
-            snapshot = activeSnapshot
-            lastError = accountErrors[activeAccount.accountId]
-        } else if let activeError = accountErrors[activeAccount.accountId] {
-            snapshot = nil
-            lastError = activeError
-        } else {
-            snapshot = nil
-            lastError = nil
+            if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
+                snapshot = activeSnapshot
+                lastError = accountErrors[activeAccount.accountId]
+            } else if let activeError = accountErrors[activeAccount.accountId] {
+                snapshot = nil
+                lastError = activeError
+            } else {
+                snapshot = nil
+                lastError = nil
+            }
         }
     }
 

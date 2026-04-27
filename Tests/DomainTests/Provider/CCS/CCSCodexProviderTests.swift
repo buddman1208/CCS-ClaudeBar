@@ -3,7 +3,6 @@ import Foundation
 @testable import Domain
 
 @Suite("CCSCodexProvider Tests")
-@MainActor
 struct CCSCodexProviderTests {
 
     private final class InMemorySettings: ProviderSettingsRepository, @unchecked Sendable {

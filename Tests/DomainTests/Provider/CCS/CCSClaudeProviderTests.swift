@@ -3,7 +3,6 @@ import Foundation
 @testable import Domain
 
 @Suite("CCSClaudeProvider Tests")
-@MainActor
 struct CCSClaudeProviderTests {
 
     // MARK: - In-memory settings repo (state verification, not method calls)
