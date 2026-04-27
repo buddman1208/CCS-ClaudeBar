@@ -114,11 +114,11 @@ struct JSONSettingsRepositoryAppTests {
     // MARK: - Background Sync
 
     @Test
-    func `backgroundSyncEnabled defaults to false`() {
+    func `backgroundSyncEnabled defaults to true (CCS ClaudeBar build)`() {
         let (repo, dir) = makeRepository()
         defer { cleanup(dir) }
 
-        #expect(repo.backgroundSyncEnabled() == false)
+        #expect(repo.backgroundSyncEnabled() == true)
     }
 
     @Test
