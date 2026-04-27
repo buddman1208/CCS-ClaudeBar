@@ -26,47 +26,13 @@ struct SettingsContentView: View {
     @State private var hooksInstalled: Bool = false
     @State private var hookError: String?
 
+    // CCS-only build: only the two CCS provider IDs are recognised here.
+    // Other provider IDs/cards (Claude direct, Codex direct, Copilot, ...)
+    // are intentionally unreferenced; they are no longer registered in
+    // ClaudeBarApp and their config cards no longer render.
     private enum ProviderID {
-        static let claude = "claude"
-        static let codex = "codex"
-        static let copilot = "copilot"
-        static let zai = "zai"
-        static let bedrock = "bedrock"
-        static let kimi = "kimi"
-        static let minimax = "minimax"
-        static let alibaba = "alibaba"
-    }
-
-    private var isCopilotEnabled: Bool {
-        monitor.provider(for: ProviderID.copilot)?.isEnabled ?? false
-    }
-
-    private var isZaiEnabled: Bool {
-        monitor.provider(for: ProviderID.zai)?.isEnabled ?? false
-    }
-
-    private var isClaudeEnabled: Bool {
-        monitor.provider(for: ProviderID.claude)?.isEnabled ?? false
-    }
-
-    private var isCodexEnabled: Bool {
-        monitor.provider(for: ProviderID.codex)?.isEnabled ?? false
-    }
-
-    private var isKimiEnabled: Bool {
-        monitor.provider(for: ProviderID.kimi)?.isEnabled ?? false
-    }
-
-    private var isMiniMaxEnabled: Bool {
-        monitor.provider(for: ProviderID.minimax)?.isEnabled ?? false
-    }
-
-    private var isBedrockEnabled: Bool {
-        monitor.provider(for: ProviderID.bedrock)?.isEnabled ?? false
-    }
-
-    private var isAlibabaEnabled: Bool {
-        monitor.provider(for: ProviderID.alibaba)?.isEnabled ?? false
+        static let ccsClaude = "ccs-claude"
+        static let ccsCodex = "ccs-codex"
     }
 
     /// Extension providers that are enabled and have config fields declared in their manifest.
@@ -100,38 +66,10 @@ struct SettingsContentView: View {
                     displayModeCard
                     overviewModeCard
                     providersCard
-                    if isClaudeEnabled {
-                        ClaudeConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isCodexEnabled {
-                        CodexConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isKimiEnabled {
-                        KimiConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isMiniMaxEnabled {
-                        MiniMaxConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isAlibabaEnabled {
-                        AlibabaConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isCopilotEnabled {
-                        CopilotConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isZaiEnabled {
-                        ZaiConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    if isBedrockEnabled {
-                        BedrockConfigCard(monitor: monitor)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+                    // No per-provider config cards in the CCS-only build:
+                    // both CCS providers self-configure entirely from
+                    // ~/.ccs/cliproxy. Extension config cards remain so
+                    // user-installed extension providers can still expose UI.
                     ForEach(enabledExtensionProvidersWithConfig, id: \.id) { extProvider in
                         ExtensionConfigCard(
                             provider: extProvider,
@@ -866,7 +804,7 @@ struct SettingsContentView: View {
                     .font(.system(size: 14, weight: .bold, design: theme.fontDesign))
                     .foregroundStyle(theme.textPrimary)
 
-                Text("Start ClaudeBar when you log in")
+                Text("Start CCS ClaudeBar when you log in")
                     .font(.system(size: 10, weight: .medium, design: theme.fontDesign))
                     .foregroundStyle(theme.textTertiary)
             }
