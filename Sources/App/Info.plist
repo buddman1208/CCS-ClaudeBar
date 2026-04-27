@@ -13,7 +13,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ClaudeBar</string>
+    <string>CCS ClaudeBar</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -26,8 +26,10 @@
     <string>15.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>CFBundleDisplayName</key>
+    <string>CCS ClaudeBar</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright 2025 TDDWorks. All rights reserved.</string>
+    <string>CCS ClaudeBar — fork of ClaudeBar (MIT © tddworks). See NOTICE.md.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>SUFeedURL</key>

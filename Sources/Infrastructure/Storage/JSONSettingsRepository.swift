@@ -74,7 +74,10 @@ public final class JSONSettingsRepository:
     }
 
     public func backgroundSyncEnabled() -> Bool {
-        store.read(key: "app.backgroundSyncEnabled") ?? false
+        // Default ON for the CCS ClaudeBar build: throttling guarantees we
+        // can't exceed one upstream call per 30s per account regardless of
+        // sync interval, so users want background updates by default.
+        store.read(key: "app.backgroundSyncEnabled") ?? true
     }
 
     public func setBackgroundSyncEnabled(_ enabled: Bool) {

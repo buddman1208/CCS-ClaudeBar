@@ -262,7 +262,7 @@ struct MenuContentView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text("ClaudeBar")
+                    Text("CCS ClaudeBar")
                         .font(.system(size: 18, weight: .bold, design: theme.fontDesign))
                         .foregroundStyle(theme.textPrimary)
 
@@ -391,6 +391,24 @@ struct MenuContentView: View {
             } else {
                 overviewContent(providers: providers)
             }
+        } else if let provider = selectedProvider,
+                  let multi = provider as? (any MultiAccountProvider),
+                  multi.accounts.count > 1 {
+            // Multi-account provider tab: scroll list of (account header, stats grid) pairs.
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 14) {
+                    ForEach(Array(multi.accounts.enumerated()), id: \.element.id) { index, account in
+                        if index > 0 {
+                            Divider().background(theme.glassBorder)
+                        }
+                        multiAccountTabRow(provider: provider, multi: multi, account: account)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .frame(maxHeight: overviewMaxHeight)
+            .opacity(animateIn ? 1 : 0)
+            .animation(.easeOut(duration: 0.5).delay(0.2), value: animateIn)
         } else if let provider = selectedProvider, let snapshot = provider.snapshot {
             VStack(spacing: 12) {
                 if let displayName = snapshot.accountEmail ?? snapshot.accountOrganization {
@@ -448,6 +466,77 @@ struct MenuContentView: View {
 
     /// Renders one row per account for multi-account providers (e.g. CCS).
     /// Each row shows the account label, status badge, and either a stats grid
+    /// Renders a single account section in a multi-account provider tab.
+    /// Layout: account header card (avatar + name + status), then the same stats grid
+    /// as the single-account view. Mirrors what users expect when selecting a provider tab.
+    @ViewBuilder
+    private func multiAccountTabRow(
+        provider: any AIProvider,
+        multi: any MultiAccountProvider,
+        account: ProviderAccount
+    ) -> some View {
+        let snapshot = multi.accountSnapshots[account.accountId]
+        let error = (multi as? CCSClaudeProvider)?.accountErrors[account.accountId]
+            ?? (multi as? CCSCodexProvider)?.accountErrors[account.accountId]
+
+        VStack(spacing: 10) {
+            // Account header: avatar + name + status badge
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(ProviderVisualIdentityLookup.gradient(for: provider.id, scheme: colorScheme))
+                        .frame(width: 28, height: 28)
+                    Text(account.initialLetter)
+                        .font(.system(size: 12, weight: .bold, design: theme.fontDesign))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.displayName)
+                        .font(.system(size: 12, weight: .semibold, design: theme.fontDesign))
+                        .foregroundStyle(theme.textPrimary)
+                        .lineLimit(1)
+                    if let email = account.email, email != account.displayName {
+                        Text(email)
+                            .font(.system(size: 10, design: theme.fontDesign))
+                            .foregroundStyle(theme.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                if let snapshot {
+                    Text(snapshot.overallStatus.badgeText)
+                        .badge(theme.statusColor(for: snapshot.overallStatus))
+                } else if provider.isSyncing {
+                    Text("Syncing...")
+                        .badge(theme.statusColor(for: .healthy))
+                } else {
+                    Text("Auth")
+                        .badge(theme.statusColor(for: .warning))
+                }
+            }
+            .padding(.horizontal, 4)
+
+            // Stats: full grid when we have a snapshot, otherwise a re-auth hint.
+            if let snapshot {
+                statsGrid(snapshot: snapshot)
+            } else if provider.isSyncing {
+                LoadingSpinnerView()
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.statusWarning)
+                    Text(error?.localizedDescription ?? "Token unavailable — run `ccs auth login` and retry.")
+                        .font(.system(size: 11, design: theme.fontDesign))
+                        .foregroundStyle(theme.textTertiary)
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
     /// or an error/loading placeholder — mirroring the single-account layout.
     @ViewBuilder
     private func multiAccountBody(provider: any AIProvider, multi: any MultiAccountProvider) -> some View {
