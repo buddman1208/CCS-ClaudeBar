@@ -43,6 +43,20 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
     /// when present; falls back to the first account discovered.
     public private(set) var activeAccount: ProviderAccount
 
+    // MARK: - Throttling
+
+    /// Minimum interval between successful upstream probes for the SAME
+    /// account. Hammering Refresh inside this window returns the cached
+    /// snapshot silently — no extra API calls, no UI noise.
+    public static let minRefreshInterval: TimeInterval = 30
+
+    /// `Date` after which each account becomes eligible for an upstream probe.
+    /// Updated on success (now + minRefreshInterval) and on 429 (now + retryAfter).
+    /// Reads/writes are serialized via the provider's main-actor reentrancy:
+    /// `refreshAllAccounts` reads BEFORE the task group, applies AFTER — the
+    /// task group itself never mutates this dictionary.
+    public private(set) var nextEligibleProbeAt: [String: Date] = [:]
+
     // MARK: - Dependencies
 
     /// Loader used to discover accounts and read OAuth tokens. Injected so
@@ -86,6 +100,13 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
         return !accounts.isEmpty
     }
 
+    /// Test-only hook: forces the per-account throttle window to be expired.
+    /// Production code paths NEVER call this; only the test suite uses it to
+    /// simulate "the cooldown elapsed" without actually sleeping for 30s.
+    public func simulateCooldownExpired(for accountId: String) {
+        nextEligibleProbeAt[accountId] = Date(timeIntervalSince1970: 0)
+    }
+
     @discardableResult
     public func refresh() async throws -> UsageSnapshot {
         await refreshAllAccounts()
@@ -118,6 +139,15 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
               let ccsAccount = ccsAccountsByEmail[accountId] else {
             throw ProbeError.noData
         }
+        // Throttle: if the account is still cooling down, return the cached
+        // snapshot if we have one (silent), or surface noData (caller will see
+        // the existing UI state remain unchanged).
+        if !isEligible(accountId) {
+            if let cached = accountSnapshots[accountId] {
+                return cached
+            }
+            throw ProbeError.noData
+        }
         guard let token = tokenSource(ccsAccount) else {
             let error = ProbeError.authenticationRequired
             accountErrors[accountId] = error
@@ -127,15 +157,29 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
             let result = try await fetchUsage(token, ccsAccount)
             accountSnapshots[accountId] = result
             accountErrors.removeValue(forKey: accountId)
+            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
             if providerAccount.accountId == activeAccount.accountId {
                 snapshot = result
                 lastError = nil
             }
             return result
-        } catch {
+        } catch let error as ProbeError {
+            applyErrorCooldown(error, for: accountId)
             accountErrors[accountId] = error
             if providerAccount.accountId == activeAccount.accountId {
-                snapshot = nil
+                // Preserve last known snapshot on failure so the user sees stale
+                // data + the error badge instead of a blank card.
+                snapshot = accountSnapshots[accountId]
+                lastError = error
+            }
+            throw error
+        } catch {
+            // Unknown errors get the baseline cooldown so we don't immediately
+            // retry an upstream that is probably still broken.
+            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+            accountErrors[accountId] = error
+            if providerAccount.accountId == activeAccount.accountId {
+                snapshot = accountSnapshots[accountId]
                 lastError = error
             }
             throw error
@@ -154,10 +198,20 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
         defer { isSyncing = false }
 
         // Resolve the work items synchronously so the actor-isolated state
-        // never leaks into a Sendable closure.
+        // never leaks into a Sendable closure. Skip accounts whose cooldown
+        // hasn't elapsed — they keep their existing snapshot/error.
         let work: [(ProviderAccount, CCSAccount)] = accounts.compactMap { providerAccount in
-            guard let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { return nil }
+            guard isEligible(providerAccount.accountId),
+                  let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { return nil }
             return (providerAccount, ccsAccount)
+        }
+
+        // No work to do: leave snapshots/errors untouched, just resync the
+        // active provider's exposed snapshot from the cache.
+        guard !work.isEmpty else {
+            snapshot = accountSnapshots[activeAccount.accountId]
+            lastError = accountErrors[activeAccount.accountId]
+            return
         }
 
         let fetcher = self.fetchUsage
@@ -180,7 +234,6 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
                     }
                 }
             }
-
             var collected: [(String, Result<UsageSnapshot, ProbeError>)] = []
             for await item in group {
                 collected.append(item)
@@ -188,28 +241,50 @@ public final class CCSClaudeProvider: MultiAccountProvider, @unchecked Sendable 
             return collected
         }
 
-        var newSnapshots: [String: UsageSnapshot] = [:]
-        var newErrors: [String: Error] = [:]
+        // Merge results back into the per-account state. Accounts that were
+        // skipped due to throttle keep their previous snapshot/error.
+        let now = Date()
         for (accountId, result) in results {
             switch result {
             case .success(let snapshot):
-                newSnapshots[accountId] = snapshot
+                accountSnapshots[accountId] = snapshot
+                accountErrors.removeValue(forKey: accountId)
+                nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
             case .failure(let error):
-                newErrors[accountId] = error
+                accountErrors[accountId] = error
+                applyErrorCooldown(error, for: accountId, now: now)
             }
         }
-        accountSnapshots = newSnapshots
-        accountErrors = newErrors
 
-        if let activeSnapshot = newSnapshots[activeAccount.accountId] {
+        if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
             snapshot = activeSnapshot
-            lastError = nil
-        } else if let activeError = newErrors[activeAccount.accountId] {
+            lastError = accountErrors[activeAccount.accountId]
+        } else if let activeError = accountErrors[activeAccount.accountId] {
             snapshot = nil
             lastError = activeError
         } else {
             snapshot = nil
             lastError = nil
+        }
+    }
+
+    // MARK: - Throttle helpers
+
+    /// Whether an account is currently allowed to make an upstream call.
+    public func isEligible(_ accountId: String, now: Date = Date()) -> Bool {
+        guard let nextOk = nextEligibleProbeAt[accountId] else { return true }
+        return now >= nextOk
+    }
+
+    /// Updates the per-account cooldown after a probe error. 429 honours the
+    /// `Retry-After` window from the upstream; everything else falls back to
+    /// the standard `minRefreshInterval` so we don't hammer a broken account.
+    private func applyErrorCooldown(_ error: ProbeError, for accountId: String, now: Date = Date()) {
+        switch error {
+        case .rateLimited(let retryAfter):
+            nextEligibleProbeAt[accountId] = now.addingTimeInterval(max(retryAfter, Self.minRefreshInterval))
+        default:
+            nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
         }
     }
 

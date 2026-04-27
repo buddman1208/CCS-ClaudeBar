@@ -104,7 +104,7 @@ struct CCSCodexProviderTests {
     }
 
     @Test
-    func `refreshAllAccounts clears stale snapshot when active account fails`() async {
+    func `refreshAllAccounts surfaces error while preserving snapshot when active account starts failing`() async {
         let flag = MutableFlag()
         let accounts = [self.makeAccount("a@x", isDefault: true)]
         let provider = CCSCodexProvider(
@@ -121,9 +121,10 @@ struct CCSCodexProviderTests {
         #expect(provider.snapshot != nil)
 
         flag.value = true
+        provider.simulateCooldownExpired(for: "a@x")
         await provider.refreshAllAccounts()
 
-        #expect(provider.snapshot == nil)
+        #expect(provider.snapshot != nil)
         #expect(provider.lastError != nil)
     }
 

@@ -35,6 +35,12 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
     public private(set) var accountErrors: [String: Error] = [:]
     public private(set) var activeAccount: ProviderAccount
 
+    // MARK: - Throttling
+
+    /// Same throttle contract as `CCSClaudeProvider`. See its docs.
+    public static let minRefreshInterval: TimeInterval = 30
+    public private(set) var nextEligibleProbeAt: [String: Date] = [:]
+
     // MARK: - Dependencies
 
     public typealias AccountSource = @Sendable () -> [CCSAccount]
@@ -69,6 +75,11 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
         return !accounts.isEmpty
     }
 
+    /// Test-only hook: forces the per-account throttle window to be expired.
+    public func simulateCooldownExpired(for accountId: String) {
+        nextEligibleProbeAt[accountId] = Date(timeIntervalSince1970: 0)
+    }
+
     @discardableResult
     public func refresh() async throws -> UsageSnapshot {
         await refreshAllAccounts()
@@ -95,6 +106,12 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
               let ccsAccount = ccsAccountsByEmail[accountId] else {
             throw ProbeError.noData
         }
+        if !isEligible(accountId) {
+            if let cached = accountSnapshots[accountId] {
+                return cached
+            }
+            throw ProbeError.noData
+        }
         guard let token = tokenSource(ccsAccount) else {
             let error = ProbeError.authenticationRequired
             accountErrors[accountId] = error
@@ -104,15 +121,25 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
             let result = try await fetchUsage(token, ccsAccount)
             accountSnapshots[accountId] = result
             accountErrors.removeValue(forKey: accountId)
+            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
             if providerAccount.accountId == activeAccount.accountId {
                 snapshot = result
                 lastError = nil
             }
             return result
-        } catch {
+        } catch let error as ProbeError {
+            applyErrorCooldown(error, for: accountId)
             accountErrors[accountId] = error
             if providerAccount.accountId == activeAccount.accountId {
-                snapshot = nil
+                snapshot = accountSnapshots[accountId]
+                lastError = error
+            }
+            throw error
+        } catch {
+            nextEligibleProbeAt[accountId] = Date().addingTimeInterval(Self.minRefreshInterval)
+            accountErrors[accountId] = error
+            if providerAccount.accountId == activeAccount.accountId {
+                snapshot = accountSnapshots[accountId]
                 lastError = error
             }
             throw error
@@ -131,8 +158,15 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
         defer { isSyncing = false }
 
         let work: [(ProviderAccount, CCSAccount)] = accounts.compactMap { providerAccount in
-            guard let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { return nil }
+            guard isEligible(providerAccount.accountId),
+                  let ccsAccount = ccsAccountsByEmail[providerAccount.accountId] else { return nil }
             return (providerAccount, ccsAccount)
+        }
+
+        guard !work.isEmpty else {
+            snapshot = accountSnapshots[activeAccount.accountId]
+            lastError = accountErrors[activeAccount.accountId]
+            return
         }
 
         let fetcher = self.fetchUsage
@@ -159,26 +193,44 @@ public final class CCSCodexProvider: MultiAccountProvider, @unchecked Sendable {
             return collected
         }
 
-        var newSnapshots: [String: UsageSnapshot] = [:]
-        var newErrors: [String: Error] = [:]
+        let now = Date()
         for (accountId, result) in results {
             switch result {
-            case .success(let snapshot): newSnapshots[accountId] = snapshot
-            case .failure(let error): newErrors[accountId] = error
+            case .success(let snapshot):
+                accountSnapshots[accountId] = snapshot
+                accountErrors.removeValue(forKey: accountId)
+                nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
+            case .failure(let error):
+                accountErrors[accountId] = error
+                applyErrorCooldown(error, for: accountId, now: now)
             }
         }
-        accountSnapshots = newSnapshots
-        accountErrors = newErrors
 
-        if let activeSnapshot = newSnapshots[activeAccount.accountId] {
+        if let activeSnapshot = accountSnapshots[activeAccount.accountId] {
             snapshot = activeSnapshot
-            lastError = nil
-        } else if let activeError = newErrors[activeAccount.accountId] {
+            lastError = accountErrors[activeAccount.accountId]
+        } else if let activeError = accountErrors[activeAccount.accountId] {
             snapshot = nil
             lastError = activeError
         } else {
             snapshot = nil
             lastError = nil
+        }
+    }
+
+    // MARK: - Throttle helpers
+
+    public func isEligible(_ accountId: String, now: Date = Date()) -> Bool {
+        guard let nextOk = nextEligibleProbeAt[accountId] else { return true }
+        return now >= nextOk
+    }
+
+    private func applyErrorCooldown(_ error: ProbeError, for accountId: String, now: Date = Date()) {
+        switch error {
+        case .rateLimited(let retryAfter):
+            nextEligibleProbeAt[accountId] = now.addingTimeInterval(max(retryAfter, Self.minRefreshInterval))
+        default:
+            nextEligibleProbeAt[accountId] = now.addingTimeInterval(Self.minRefreshInterval)
         }
     }
 

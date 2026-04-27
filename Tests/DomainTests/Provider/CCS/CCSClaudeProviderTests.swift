@@ -198,7 +198,7 @@ struct CCSClaudeProviderTests {
     }
 
     @Test
-    func `refreshAllAccounts clears stale snapshot when active account starts failing`() async {
+    func `refreshAllAccounts surfaces error while preserving last known snapshot when active account starts failing`() async {
         let accounts = [self.makeAccount("a@x", isDefault: true)]
         let flag = MutableFlag()
         let provider = CCSClaudeProvider(
@@ -215,9 +215,14 @@ struct CCSClaudeProviderTests {
         #expect(provider.snapshot != nil)
 
         flag.value = true
+        // Bypass throttle: in production the next probe would happen 30s later;
+        // simulate that elapsed window so we can verify the failure path.
+        provider.simulateCooldownExpired(for: "a@x")
         await provider.refreshAllAccounts()
 
-        #expect(provider.snapshot == nil)
+        // New design: keep the last good snapshot AND surface the error so the
+        // user sees stale data + a warning rather than going blank.
+        #expect(provider.snapshot != nil)
         #expect(provider.lastError != nil)
     }
 
@@ -237,10 +242,89 @@ struct CCSClaudeProviderTests {
 
         #expect(settings.isEnabled(forProvider: "ccs-claude") == false)
     }
+
+    // MARK: - Throttling (refresh-mash protection)
+
+    @Test
+    func `refreshAccount within cooldown returns cached snapshot without calling fetcher again`() async throws {
+        let counter = CallCounter()
+        let accounts = [self.makeAccount("a@x", isDefault: true)]
+        let provider = CCSClaudeProvider(
+            accountSource: { accounts },
+            tokenSource: { account in self.makeToken(account.email) },
+            fetchUsage: { _, account in
+                counter.increment()
+                return self.snapshot(for: account.email, percentRemaining: 80)
+            },
+            settingsRepository: InMemorySettings()
+        )
+
+        _ = try await provider.refreshAccount("a@x")
+        #expect(counter.value == 1)
+
+        for _ in 0..<5 {
+            _ = try await provider.refreshAccount("a@x")
+        }
+        #expect(counter.value == 1)
+        #expect(provider.accountSnapshots["a@x"]?.quotas.first?.percentRemaining == 80)
+    }
+
+    @Test
+    func `refreshAllAccounts skips accounts still in cooldown`() async {
+        let counter = CallCounter()
+        let accounts = [self.makeAccount("a@x", isDefault: true), self.makeAccount("b@x")]
+        let provider = CCSClaudeProvider(
+            accountSource: { accounts },
+            tokenSource: { account in self.makeToken(account.email) },
+            fetchUsage: { _, account in
+                counter.increment()
+                return self.snapshot(for: account.email, percentRemaining: 75)
+            },
+            settingsRepository: InMemorySettings()
+        )
+
+        await provider.refreshAllAccounts()
+        #expect(counter.value == 2)
+
+        await provider.refreshAllAccounts()
+        await provider.refreshAllAccounts()
+        #expect(counter.value == 2)
+        #expect(provider.accountSnapshots.count == 2)
+    }
+
+    @Test
+    func `429 rateLimited honors Retry-After by extending cooldown beyond 30s`() async {
+        let accounts = [self.makeAccount("a@x", isDefault: true)]
+        let provider = CCSClaudeProvider(
+            accountSource: { accounts },
+            tokenSource: { account in self.makeToken(account.email) },
+            fetchUsage: { _, _ in throw ProbeError.rateLimited(retryAfter: 600) },
+            settingsRepository: InMemorySettings()
+        )
+
+        await provider.refreshAllAccounts()
+        #expect(provider.accountErrors["a@x"] != nil)
+
+        let nextOk = provider.nextEligibleProbeAt["a@x"]
+        #expect(nextOk != nil)
+        let secondsUntilNextProbe = nextOk!.timeIntervalSinceNow
+        #expect(secondsUntilNextProbe > 60)
+        #expect(secondsUntilNextProbe <= 600 + 1)
+    }
 }
 
 /// Tiny mutable cell so test closures can flip behavior without capturing
 /// a `var`, which Swift 6 strict concurrency rejects.
 private final class MutableFlag: @unchecked Sendable {
     var value: Bool = false
+}
+
+/// Thread-safe counter for asserting how many times the fetcher closure
+/// runs. Required because Swift 6 forbids capturing a mutable Int across
+/// Sendable closures.
+private final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: Int = 0
+    var value: Int { lock.lock(); defer { lock.unlock() }; return _value }
+    func increment() { lock.lock(); _value += 1; lock.unlock() }
 }
