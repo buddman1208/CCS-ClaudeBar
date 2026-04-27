@@ -69,6 +69,10 @@ public struct CCSClaudeUsageProbe: Sendable {
             break
         case 401, 403:
             throw ProbeError.sessionExpired(hint: "Token rejected by Anthropic — run `ccs auth login` to refresh.")
+        case 429:
+            let retryAfter = Self.parseRetryAfter(http) ?? 60
+            AppLog.probes.warning("CCS Claude API: HTTP 429 (retry in \(Int(retryAfter))s)")
+            throw ProbeError.rateLimited(retryAfter: retryAfter)
         default:
             AppLog.probes.error("CCS Claude API: HTTP \(http.statusCode)")
             throw ProbeError.executionFailed("HTTP error: \(http.statusCode)")
@@ -160,6 +164,28 @@ public struct CCSClaudeUsageProbe: Sendable {
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
         return plain.date(from: string)
+    }
+
+    /// Parses the standard `Retry-After` HTTP header. Supports both the
+    /// integer-seconds form (`Retry-After: 60`) and the HTTP-date form
+    /// (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`). Returns `nil` when the
+    /// header is missing or unparseable.
+    static func parseRetryAfter(_ response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        if let seconds = TimeInterval(raw), seconds.isFinite, seconds >= 0 {
+            return seconds
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        if let date = formatter.date(from: raw) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        return nil
     }
 
     private static func formatResetText(_ date: Date?) -> String? {
